@@ -5,6 +5,17 @@
 **Status**: Draft
 **Input**: User description: "每个云盘应该都具备以下功能，如果云盘本身不支持可以不实现对应方法..."
 
+## Clarifications
+
+### Session 2026-05-01
+
+- Q: 系统调用者身份（管理员/最终用户）? → A: 管理员通过 HTTP API 调用（管理员配置凭证后，通过 API 操作，最终用户不直接接触系统）
+- Q: 同步任务并发冲突（同一文件同时被两个任务同步）? → A: 跳过+告警：第二个任务跳过 backup 移动，记录告警，任务状态仍为 completed
+- Q: 可观测性要求（日志/审计）? → A: 结构化日志 + 操作记录表：JSON 格式日志写入文件；数据库记录每个 API 操作（操作人、时间、云盘、操作类型、路径、结果）
+- Q: PikPak API 限速时如何处理? → A: 内置重试（指数退避）：API 限速时自动重试，每次等待时间翻倍（1s→2s→4s…），最多 60s 后标记任务 failed
+- Q: 是否有多个用户场景? → A: 否，个人云盘管理工具，单一管理员使用，无多用户隔离需求；操作记录表中操作人字段固定为 "admin"
+- Q: 是否支持取消同步任务? → A: 支持取消：用户提供 job_id 取消 running 中的任务；系统中断下载并清理临时文件；status 标记为 cancelled
+
 ## User Scenarios & Testing
 
 ### User Story 1 - 查看云盘目录内容 (Priority: P1)
@@ -109,6 +120,7 @@
 4. **Given** 本地路径不存在，**When** 用户发起同步任务，**Then** 系统自动创建本地目录，完成下载后再移动云盘原文件
 5. **Given** 下载过程中网络中断，**When** 系统重试（默认10次），**Then** 恢复后继续下载，完成后文件完整且云盘原文件仍保留在原位置（未移动），待下次同步成功后移动
 6. **Given** 同步任务进行中，**When** 用户查询任务状态，**Then** 系统返回当前进度（已下载大小、总大小、完成百分比）和当前阶段（downloading / moving-to-backup / completed）
+7. **Given** 同步任务正在 running，**When** 管理员通过 job_id 发起取消请求，**Then** 系统中断下载并清理临时文件，任务 status 标记为 cancelled，不执行 backup 移动
 
 ---
 
@@ -122,6 +134,8 @@
 - 并发同步任务数超过限制（默认 5 个并发），系统应返回队列满错误
 - 下载完成后移动到云盘 backup 目录时若原文件已被删除或移动，应跳过该移动步骤并标记任务为 completed（而非 failed）
 - 若云盘 `/backup/` 目录不存在，系统应自动创建后再执行移动
+- 管理员可在任务 running 时通过 job_id 取消任务，系统中断下载并清理临时文件，status 标记为 cancelled；cancelled 任务不执行 backup 移动
+- 同一文件同时被两个同步任务操作时，第二个任务跳过 backup 移动并记录告警，任务状态仍为 completed
 
 ## Requirements
 
@@ -135,14 +149,15 @@
 - **FR-006**: 系统必须支持异步同步云盘文件到本地，本地路径不存在时自动创建；云盘路径不存在时返回错误；默认 5 个并发线程、重试 10 次
 - **FR-007**: 同步任务应在下载完成后自动将云盘原文件移动到云盘 `/backup/` 目录下的相同路径结构（如 `/documents/a.txt` → `/backup/documents/a.txt`）；移动操作按 FR-003 执行（自动创建目标目录）
 - **FR-008**: 同步任务应支持查询进度，返回已完成字节数、总字节数、完成百分比和当前阶段（downloading / moving-to-backup / completed）
-- **FR-008**: 所有操作返回统一格式，包含操作结果或错误码/错误信息
-- **FR-009**: 云盘操作应支持超时配置（可通过配置设置，默认 300 秒）
-- **FR-010**: 同步任务应支持在下载失败后保留云盘原文件（不移动），待下次重试成功后再执行移动操作
+- **FR-009**: 同步任务支持取消（管理员通过 job_id 取消 running 中任务），系统中断下载并清理临时文件，status 标记为 cancelled
+- **FR-010**: 所有操作返回统一格式，包含操作结果或错误码/错误信息
+- **FR-011**: 云盘操作应支持超时配置（可通过配置设置，默认 300 秒）
+- **FR-012**: 同步任务应在下载失败后保留云盘原文件（不移动），待下次重试成功后再执行移动操作
 
 ### Key Entities
 
 - **FileInfo**: 云盘文件实体 — 属性：name（文件名）、path（完整路径）、size（字节大小）、is_dir（是否目录）、modified（ISO 8601 修改时间）、mime_type（MIME 类型，可为空）
-- **SyncJob**: 同步任务实体 — 属性：job_id（任务ID）、source_path（云盘源路径）、local_path（本地目标路径）、status（pending/running/completed/failed）、phase（downloading / moving-to-backup / completed）、progress_bytes（已完成字节数）、total_bytes（总字节数）、created_at（创建时间）
+- **SyncJob**: 同步任务实体 — 属性：job_id（任务ID）、source_path（云盘源路径）、local_path（本地目标路径）、status（pending/running/completed/failed/cancelled）、phase（downloading / moving-to-backup / completed）、progress_bytes（已完成字节数）、total_bytes（总字节数）、created_at（创建时间）
 - **CloudDriveConfig**: 云盘配置实体 — 属性：drive_type（云盘类型）、remote_name（rclone remote 名称）、username（认证用户名）、password（加密存储密码）、is_enabled（是否启用）
 - **OfflineDownloadTask**: 离线下载任务实体（仅 PikPak）— 属性：task_id、urls（链接列表）、destination_folder（目标云盘目录）、status（pending/running/completed/failed）
 
@@ -157,6 +172,7 @@
 - **SC-005**: 同步任务提交后，5 秒内返回任务 ID；下载完成时间取决于网络带宽和云盘接口限速，不做强制时间要求
 - **SC-006**: 系统在 5 个并发同步任务下运行稳定，10 次重试内完成率不低于 95%
 - **SC-007**: 所有云盘操作的错误信息对用户友好，不出现技术术语或堆栈信息
+- **SC-008**: 每条 API 操作在 500ms 内写入操作记录表；日志不丢失（write-through 或 buffered flush ≤ 5s）
 
 ## Assumptions
 
@@ -168,3 +184,6 @@
 - 所有云盘均支持列表、详情、移动、删除基础操作（差异仅在云下载和同步能力上）
 - 同步后备份移动使用云盘自身的 `/backup/` 路径作为目标（而非本地路径）
 - 下载成功后才执行备份移动；下载未成功时不移动云盘原文件，下次重试成功后再移动
+- 系统调用方为管理员，通过 HTTP API 操作云盘；最终用户不直接接触系统
+- 系统输出结构化 JSON 日志（每条日志含 timestamp、level、logger_name、message、extra 字段）；所有 API 操作记录到数据库操作记录表；操作人字段固定为 "admin"（个人工具，无多用户）
+- PikPak API 限速时自动重试（指数退避 1s→2s→4s…，上限 60s），超时后任务标记为 failed
