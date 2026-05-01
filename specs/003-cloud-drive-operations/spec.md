@@ -95,20 +95,20 @@
 
 ### User Story 6 - 同步文件到本地 (Priority: P2)
 
-用户能够将云盘指定路径下的文件异步下载到本地，支持断点续传和并发下载。
+用户能够将云盘指定路径下的文件异步下载到本地，并在下载成功后自动将云盘上的原文件移动到云盘备份目录，实现类似"下载 + 归档"的双重操作。
 
-**Why this priority**: 文件同步到本地是云盘使用的重要场景，用户需要将云盘文件备份或离线使用到本地，异步 + 并发是效率关键。
+**Why this priority**: 文件同步到本地是云盘使用的重要场景，用户需要将云盘文件备份或离线使用到本地；下载完成后将原文件移动到备份目录可释放云盘空间，同时保留归档。异步 + 并发是效率关键。
 
-**Independent Test**: 可通过调用「同步」接口触发下载，验证返回任务 ID，并通过轮询或回调确认下载完成、文件出现在本地目标路径。
+**Independent Test**: 可通过调用「同步」接口触发下载，验证返回任务 ID，并通过轮询或回调确认下载完成、文件出现在本地目标路径，且云盘原文件已移动到 `/backup/` 目录。
 
 **Acceptance Scenarios**:
 
-1. **Given** 云盘路径 `/documents/data.zip` 存在，本地路径 `/home/user/downloads/` 存在，**When** 用户发起同步任务，**Then** 系统异步下载文件到本地，完成后文件完整出现在目标路径
-2. **Given** 云盘路径不存在，**When** 用户发起同步任务，**Then** 系统返回错误「云盘地址不存在」
-3. **Given** 本地路径不存在，**When** 用户发起同步任务，**Then** 系统自动创建本地目录，完成下载
-4. **Given** 下载过程中网络中断，**When** 系统重试（默认10次），**Then** 恢复后继续下载，完成后文件完整
-5. **Given** 云盘路径 `/documents/folder/` 是目录，**When** 用户发起同步任务，**Then** 系统下载整个目录（保持目录结构）到本地
-6. **Given** 同步任务进行中，**When** 用户查询任务状态，**Then** 系统返回当前进度（已下载大小、总大小、完成百分比）
+1. **Given** 云盘路径 `/documents/data.zip` 存在，本地路径 `/home/user/downloads/` 存在，**When** 用户发起同步任务，**Then** 系统异步下载文件到本地，完成后文件完整出现在目标路径；同时将云盘原文件 `/documents/data.zip` 移动到云盘 `/backup/documents/data.zip`
+2. **Given** 云盘路径 `/documents/folder/` 是目录，**When** 用户发起同步任务，**Then** 系统下载整个目录（保持目录结构）到本地，完成后将云盘 `/documents/folder/` 移动到云盘 `/backup/documents/folder/`
+3. **Given** 云盘路径不存在，**When** 用户发起同步任务，**Then** 系统返回错误「云盘地址不存在」
+4. **Given** 本地路径不存在，**When** 用户发起同步任务，**Then** 系统自动创建本地目录，完成下载后再移动云盘原文件
+5. **Given** 下载过程中网络中断，**When** 系统重试（默认10次），**Then** 恢复后继续下载，完成后文件完整且云盘原文件仍保留在原位置（未移动），待下次同步成功后移动
+6. **Given** 同步任务进行中，**When** 用户查询任务状态，**Then** 系统返回当前进度（已下载大小、总大小、完成百分比）和当前阶段（downloading / moving-to-backup / completed）
 
 ---
 
@@ -120,6 +120,8 @@
 - 同步目录时包含超大文件（> 10GB），应支持分片下载和断点续传
 - 目标路径磁盘空间不足时，同步应提前检测并返回错误
 - 并发同步任务数超过限制（默认 5 个并发），系统应返回队列满错误
+- 下载完成后移动到云盘 backup 目录时若原文件已被删除或移动，应跳过该移动步骤并标记任务为 completed（而非 failed）
+- 若云盘 `/backup/` 目录不存在，系统应自动创建后再执行移动
 
 ## Requirements
 
@@ -131,14 +133,16 @@
 - **FR-004**: 系统必须支持删除指定路径的文件或文件夹，根目录 `/` 和空路径不能删除
 - **FR-005**: 系统必须支持云下载功能（仅 PikPak），将 URL 列表离线下载到云盘指定目录（默认为 `/My Pack`），其他云盘返回「不支持」
 - **FR-006**: 系统必须支持异步同步云盘文件到本地，本地路径不存在时自动创建；云盘路径不存在时返回错误；默认 5 个并发线程、重试 10 次
-- **FR-007**: 同步任务应支持查询进度，返回已完成字节数、总字节数、完成百分比
+- **FR-007**: 同步任务应在下载完成后自动将云盘原文件移动到云盘 `/backup/` 目录下的相同路径结构（如 `/documents/a.txt` → `/backup/documents/a.txt`）；移动操作按 FR-003 执行（自动创建目标目录）
+- **FR-008**: 同步任务应支持查询进度，返回已完成字节数、总字节数、完成百分比和当前阶段（downloading / moving-to-backup / completed）
 - **FR-008**: 所有操作返回统一格式，包含操作结果或错误码/错误信息
 - **FR-009**: 云盘操作应支持超时配置（可通过配置设置，默认 300 秒）
+- **FR-010**: 同步任务应支持在下载失败后保留云盘原文件（不移动），待下次重试成功后再执行移动操作
 
 ### Key Entities
 
 - **FileInfo**: 云盘文件实体 — 属性：name（文件名）、path（完整路径）、size（字节大小）、is_dir（是否目录）、modified（ISO 8601 修改时间）、mime_type（MIME 类型，可为空）
-- **SyncJob**: 同步任务实体 — 属性：job_id（任务ID）、source_path（云盘源路径）、local_path（本地目标路径）、status（pending/running/completed/failed）、progress_bytes（已完成字节数）、total_bytes（总字节数）、created_at（创建时间）
+- **SyncJob**: 同步任务实体 — 属性：job_id（任务ID）、source_path（云盘源路径）、local_path（本地目标路径）、status（pending/running/completed/failed）、phase（downloading / moving-to-backup / completed）、progress_bytes（已完成字节数）、total_bytes（总字节数）、created_at（创建时间）
 - **CloudDriveConfig**: 云盘配置实体 — 属性：drive_type（云盘类型）、remote_name（rclone remote 名称）、username（认证用户名）、password（加密存储密码）、is_enabled（是否启用）
 - **OfflineDownloadTask**: 离线下载任务实体（仅 PikPak）— 属性：task_id、urls（链接列表）、destination_folder（目标云盘目录）、status（pending/running/completed/failed）
 
@@ -162,3 +166,5 @@
 - 云下载功能仅 PikPak 支持，其他云盘调用时返回明确提示
 - 异步同步任务通过任务 ID 轮询查询状态（不依赖 WebSocket 或推送）
 - 所有云盘均支持列表、详情、移动、删除基础操作（差异仅在云下载和同步能力上）
+- 同步后备份移动使用云盘自身的 `/backup/` 路径作为目标（而非本地路径）
+- 下载成功后才执行备份移动；下载未成功时不移动云盘原文件，下次重试成功后再移动
