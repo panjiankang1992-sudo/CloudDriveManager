@@ -1,6 +1,14 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+shell commands, and other important information, read the current plan:
+specs/003-cloud-drive-operations/plan.md
+
+Also read these design artifacts for the cloud drive operations feature:
+- specs/003-cloud-drive-operations/spec.md
+- specs/003-cloud-drive-operations/data-model.md
+- specs/003-cloud-drive-operations/contracts/sync-job-api.md
+- specs/003-cloud-drive-operations/quickstart.md
+- specs/003-cloud-drive-operations/research.md
 <!-- SPECKIT END -->
 
 ## Project State
