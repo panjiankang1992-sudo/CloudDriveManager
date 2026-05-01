@@ -130,16 +130,16 @@ description: "Task list for cloud drive file operations feature implementation"
 
 ### Implementation
 
-- [ ] T035 [P] [US5] 实现 `OfflineDownloadRequest` schema（`urls: List[str], folder: str = "/My Pack"`）in `src/core/schemas.py`
-- [ ] T036 [US5] 调研 PikPak API 认证和下载接口（使用 `/context7-mcp` 查询 PikPak API 文档）
-- [ ] T037 [US5] 实现 `src/services/pikpak_api.py` — PikPak HTTP API 封装：
+- [X] T035 [P] [US5] 实现 `OfflineDownloadRequest` schema（`urls: List[str], folder: str = "/My Pack"`）in `src/core/schemas.py`
+- [X] T036 [US5] 调研 PikPak API 认证和下载接口（使用 `/context7-mcp` 查询 PikPak API 文档）
+- [X] T037 [US5] 实现 `src/services/pikpak_api.py` — PikPak HTTP API 封装：
   - `signin(username, password)` → access_token
   - `create_download_task(access_token, urls, folder)` → task_id
   - 限速处理：指数退避 1s→2s→4s…，上限 60s
-- [ ] T038 [US5] 在 `src/services/pikpak.py` 实现 `cloud_download_add`（调用 `pikpak_api.py`）
-- [ ] T039 [US5] 在 `src/api/pikpak_offline.py` 添加 `POST /cloud/pikpak/offline-download` 端点
-- [ ] T040 [US5] 非 PikPak 云盘调用时返回 `UNSUPPORTED_DRIVE_TYPE`
-- [ ] T041 [US5] 添加操作日志记录（operation=`offline_download`）
+- [X] T038 [US5] 在 `src/services/pikpak.py` 实现 `cloud_download_add`（调用 `pikpak_api.py`）
+- [X] T039 [US5] 在 `src/api/pikpak_offline.py` 添加 `POST /cloud/pikpak/offline-download` 端点
+- [X] T040 [US5] 非 PikPak 云盘调用时返回 `UNSUPPORTED_DRIVE_TYPE`
+- [X] T041 [US5] 添加操作日志记录（operation=`offline_download`）
 
 **Checkpoint**: US5 完成（PikPak 离线下载可用）
 
@@ -197,12 +197,12 @@ description: "Task list for cloud drive file operations feature implementation"
 
 **Purpose**: 跨用户故事的完善工作
 
-- [ ] T049 [P] 更新 `src/mcp/server.py` — 添加 `pikpak_sync_to_local`、`pikpak_get_sync_status`、`pikpak_cancel_sync` MCP 工具（参照 contracts/sync-job-api.md 端点）
-- [ ] T050 [P] 更新 `src/mcp/server.py` — 添加 `pikpak_offline_download` MCP 工具
-- [ ] T051 [P] 验证所有 `src/core/exceptions.py` 错误码与 contracts/sync-job-api.md 错误表一致
-- [ ] T052 运行 `quickstart.md` 中的所有 curl 示例，验证端到端流程
-- [ ] T053 [P] 更新 `config/config_dev.yaml` 和 `config/config_prod.yaml`（如有新增配置项）
-- [ ] T054 清理 `__pycache__`、`*.pyc`，确保 `.gitignore` 生效
+- [X] T049 [P] 更新 `src/mcp/server.py` — 添加 `pikpak_sync_to_local`、`pikpak_get_sync_status`、`pikpak_cancel_sync` MCP 工具（参照 contracts/sync-job-api.md 端点）
+- [X] T050 [P] 更新 `src/mcp/server.py` — 添加 `pikpak_offline_download` MCP 工具
+- [X] T051 [P] 验证所有 `src/core/exceptions.py` 错误码与 contracts/sync-job-api.md 错误表一致
+- [X] T052 运行 `quickstart.md` 中的所有 curl 示例，验证端到端流程
+- [X] T053 [P] 更新 `config/config_dev.yaml` 和 `config/config_prod.yaml`（如有新增配置项）
+- [X] T054 清理 `__pycache__`、`*.pyc`，确保 `.gitignore` 生效
 
 ---
 
