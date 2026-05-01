@@ -1,0 +1,30 @@
+database:
+  host: "192.168.1.9"
+  port: 3306
+  username: "root"
+  password: ""  # Set via environment variable or leave empty (will be encrypted)
+  name: "cloud_drive_manager"
+
+app:
+  host: "0.0.0.0"
+  port: 29312
+  debug: false
+
+encryption:
+  salt: "OIfneBqZYsoQRb418qsamQPGPAKH9LioHfuJwbmmsn8="  # Fernet key (base64, 32 bytes)
+
+logging:
+  level: "WARNING"
+  file: "log/app.log"
+  format: "json"
+
+cloud_drives:
+  rclone_path: "rclone"
+  timeout: 300
+  max_concurrent_syncs: 5
+  max_retry: 10
+
+pikpak:
+  # Set via environment: PIKPAK_USERNAME and PIKPAK_PASSWORD
+  username: ""
+  password: ""

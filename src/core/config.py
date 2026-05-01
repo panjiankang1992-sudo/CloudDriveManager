@@ -30,10 +30,14 @@ class Config:
         self._fernet_key: str | None = None
 
     @classmethod
-    def get(cls) -> Config:
-        """Get the singleton Config instance (loads on first call)."""
+    def get(cls, env: str | None = None) -> Config:
+        """Get the singleton Config instance (loads on first call).
+
+        Args:
+            env: Environment name (dev/prod). Defaults to CONFIG_ENV env var or 'dev'.
+        """
         if cls._instance is None:
-            env = os.getenv("CONFIG_ENV", "dev")
+            env = env or os.getenv("CONFIG_ENV", "dev")
             config_path = cls._find_config(env)
             logger.info(f"Loading config from {config_path}")
             data = cls._load_yaml(config_path)

@@ -275,10 +275,9 @@ class PikPakCloudDrive(CloudDriveService):
         )
 
     def cloud_download_add(self, urls: List[str], folder: str = "/My Pack") -> str:
-        # Implementation deferred to pikpak_api.py (T036-T038)
-        raise NotImplementedError(
-            "PikPak offline download requires pikpak_api.py implementation (T036-T038)"
-        )
+        # Implementation in src/services/pikpak.py (T038)
+        from src.services.pikpak import cloud_download_add as _add
+        return _add(urls, folder)
 
 
 # ── Service factory ─────────────────────────────────────────────────────────────
