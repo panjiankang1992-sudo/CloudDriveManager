@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.venv/
+venv/
+ENV/
+env/
+.eggs/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# Config (secrets)
+*.yaml
+!config/config_dev.yaml.example
+!config/config_prod.yaml.example
+.env
+.env.*
+
+# Logs
+log/*.log
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# Build
+*.spec
+*.spec.backup
+build/
+cloud-drive-*.spec
+
+# Misc
+*.tmp
+*.cache

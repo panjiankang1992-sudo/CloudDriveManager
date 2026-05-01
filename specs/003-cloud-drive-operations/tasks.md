@@ -19,12 +19,12 @@ description: "Task list for cloud drive file operations feature implementation"
 
 **Purpose**: 项目基础结构和依赖管理
 
-- [ ] T001 [P] 创建 `src/adapters/`、`src/services/`、`src/api/`、`src/core/`、`src/db/` 目录结构
-- [ ] T002 [P] 创建 `tests/unit/`、`tests/integration/`、`tests/contract/` 目录结构
-- [ ] T003 [P] 创建 `src/__init__.py` 及各子包 `__init__.py`
-- [ ] T004 [P] 创建/更新 `pyproject.toml`（FastAPI, uvicorn, pydantic>=2.0, pymysql, cryptography, pytest, httpx, python-multipart）
-- [ ] T005 [P] 创建 `.gitignore`（Python: __pycache__/, *.pyc, .venv/, *.egg-info/, .env, build/, dist/, *.spec）
-- [ ] T006 创建 `log/` 目录（用于 JSON 结构化日志输出）
+- [X] T001 [P] 创建 `src/adapters/`、`src/services/`、`src/api/`、`src/core/`、`src/db/` 目录结构
+- [X] T002 [P] 创建 `tests/unit/`、`tests/integration/`、`tests/contract/` 目录结构
+- [X] T003 [P] 创建 `src/__init__.py` 及各子包 `__init__.py`
+- [X] T004 [P] 创建/更新 `pyproject.toml`（FastAPI, uvicorn, pydantic>=2.0, pymysql, cryptography, pytest, httpx, python-multipart）
+- [X] T005 [P] 创建 `.gitignore`（Python: __pycache__/, *.pyc, .venv/, *.egg-info/, .env, build/, dist/, *.spec）
+- [X] T006 创建 `log/` 目录（用于 JSON 结构化日志输出）
 
 ---
 
@@ -34,14 +34,14 @@ description: "Task list for cloud drive file operations feature implementation"
 
 **⚠️ CRITICAL**: Phase 2 完成前不得开始任何用户故事实现
 
-- [ ] T007 [P] 实现 `src/core/logger.py` — 结构化 JSON 日志Formatter（timestamp/level/logger/message/extra），使用 Python logging 标准库
-- [ ] T008 [P] 实现 `src/core/config.py` — 加载 `config/config_*.yaml`，解析 encryption.salt 为 Fernet key
-- [ ] T009 [P] 创建 `src/db/database.py` — MySQL 连接管理（PyMySQL），配置来自 config
-- [ ] T010 [P] 实现 `src/core/schemas.py` — 补充 `SyncJobSchema`、`OperationLogSchema`、`CloudDriveListRequest`、`CloudDriveDetailRequest` 等 Pydantic 模型（参照 data-model.md）
-- [ ] T011 [P] 创建 `src/core/exceptions.py` — 补充 `SyncError`、`JobNotFoundError`、`InvalidJobStateError`、`OperationQueueFullError`（参照 contracts/sync-job-api.md 错误码）
-- [ ] T012 实现 `src/db/init_db.py` — 执行 data-model.md 中的 CREATE TABLE SQL（cloud_drive_configs、sync_jobs、offline_download_tasks、operation_logs）
-- [ ] T013 [P] 实现 `src/core/operation_logger.py` — OperationLog 写入逻辑（同步写入，≤500ms，参照 SC-008）
-- [ ] T014 实现 `src/adapters/rclone_adapter.py` — 补充 `mkdir` 方法（自动创建目标目录）和 `moveto` 前先 `mkdir` 的调用逻辑（FR-003）
+- [X] T007 [P] 实现 `src/core/logger.py` — 结构化 JSON 日志Formatter（timestamp/level/logger/message/extra），使用 Python logging 标准库
+- [X] T008 [P] 实现 `src/core/config.py` — 加载 `config/config_*.yaml`，解析 encryption.salt 为 Fernet key
+- [X] T009 [P] 创建 `src/db/database.py` — MySQL 连接管理（PyMySQL），配置来自 config
+- [X] T010 [P] 实现 `src/core/schemas.py` — 补充 `SyncJobSchema`、`OperationLogSchema`、`CloudDriveListRequest`、`CloudDriveDetailRequest` 等 Pydantic 模型（参照 data-model.md）
+- [X] T011 [P] 创建 `src/core/exceptions.py` — 补充 `SyncError`、`JobNotFoundError`、`InvalidJobStateError`、`OperationQueueFullError`（参照 contracts/sync-job-api.md 错误码）
+- [X] T012 实现 `src/db/init_db.py` — 执行 data-model.md 中的 CREATE TABLE SQL（cloud_drive_configs、sync_jobs、offline_download_tasks、operation_logs）
+- [X] T013 [P] 实现 `src/core/operation_logger.py` — OperationLog 写入逻辑（同步写入，≤500ms，参照 SC-008）
+- [X] T014 实现 `src/adapters/rclone_adapter.py` — 补充 `mkdir` 方法（自动创建目标目录）和 `moveto` 前先 `mkdir` 的调用逻辑（FR-003）
 
 **Checkpoint**: 基础就绪，可以开始用户故事实现
 
