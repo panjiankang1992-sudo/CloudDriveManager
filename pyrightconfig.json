@@ -1,0 +1,12 @@
+{
+  "include": ["src"],
+  "exclude": ["**/__pycache__"],
+  "pythonVersion": "3.10",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": true,
+  "reportAttributeAccessIssue": true,
+  "reportOptionalMemberAccess": true,
+  "analysis": {
+    "useLibraryCodeForTypes": true
+  }
+}

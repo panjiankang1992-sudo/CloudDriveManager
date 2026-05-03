@@ -1,0 +1,15 @@
+[Unit]
+Description=CloudDriveManager HTTP API Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/yuyutian/cloud-drive
+ExecStart=/home/yuyutian/cloud-drive/bin/cloud-drive-manager.sh
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
