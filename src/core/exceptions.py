@@ -162,3 +162,9 @@ class InvalidJobStateError(ServiceError):
 class OperationQueueFullError(ServiceError):
     CODE = "OPERATION_QUEUE_FULL"
     MESSAGE = "Too many concurrent sync tasks. Please wait and retry."
+
+
+class CloudDriveFileInUseError(CloudDriveError2):
+    """Raised when attempting to delete or move a file that is currently being synced."""
+    CODE = "FILE_IN_USE"
+    MESSAGE = "The file is currently being used by another operation."

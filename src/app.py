@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.cors import CORSMiddleware
 
 from src.core.config import Config
 from src.core.logger import get_logger, setup_logger
@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
     setup_logger("app", log_file=cfg.log_file, level=cfg.log_level)  # type: ignore[reportCallIssue]
 
     logger.info(
-        f"Starting CloudDriveManager on {cfg.api_host}:{cfg.api_port} "
+        f"Starting CloudDriveManager on {cfg.app_host}:{cfg.app_port} "
         f"(env={cfg.env})"
     )
 
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     cfg: Any = Config.get()  # type: ignore[reportCallIssue]
     uvicorn.run(
         "src.app:app",
-        host=cfg.api_host,
-        port=cfg.api_port,
+        host=cfg.app_host,
+        port=cfg.app_port,
         reload=(cfg.env == "dev"),
     )

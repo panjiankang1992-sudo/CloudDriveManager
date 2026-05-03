@@ -30,7 +30,7 @@ class Config:
         self._fernet_key: str | None = None
 
     @classmethod
-    def get(cls, env: str | None = None) -> Config:
+    def get(cls, env: str | None = None) -> "Config":
         """Get the singleton Config instance (loads on first call).
 
         Args:
@@ -111,6 +111,11 @@ class Config:
     def app_debug(self) -> bool:
         return bool(self._data.get("app", {}).get("debug", False))
 
+    @property
+    def env(self) -> str:
+        """Return the current environment (dev/prod) from CONFIG_ENV."""
+        return os.getenv("CONFIG_ENV", "dev")
+
     # ── Encryption ─────────────────────────────────────────────────────────────
 
     @property
@@ -175,7 +180,7 @@ class Config:
 
     # ── Generic access ───────────────────────────────────────────────────────
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get_value(self, key: str, default: Any = None) -> Any:
         """Access any config value by dot-notation key (e.g., "database.host")."""
         keys = key.split(".")
         val = self._data
@@ -189,4 +194,4 @@ class Config:
         return val
 
     def __getitem__(self, key: str) -> Any:
-        return self.get(key)
+        return self.get_value(key)

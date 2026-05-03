@@ -27,7 +27,7 @@ logger = get_logger("mcp_server")
 
 mcp = FastMCP(
     "CloudDriveManager",
-    description="Universal cloud drive file operations (list/detail/move/delete/sync/offline-download)",
+    instructions="Universal cloud drive file operations (list/detail/move/delete/sync/offline-download)",
 )
 
 

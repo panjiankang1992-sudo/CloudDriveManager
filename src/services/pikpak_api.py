@@ -34,8 +34,8 @@ class PikPakClient:
 
     def __init__(self, username: str | None = None, password: str | None = None):
         cfg = Config.get()
-        self._username = username or cfg.get("pikpak.username", "")
-        self._password = password or cfg.get("pikpak.password", "")
+        self._username = username or cfg.get_value("pikpak.username", "")
+        self._password = password or cfg.get_value("pikpak.password", "")
         self._client: PikPakApi | None = None
         self._access_token: str | None = None
         self._refresh_token: str | None = None

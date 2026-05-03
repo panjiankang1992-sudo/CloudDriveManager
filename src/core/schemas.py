@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ── Enums ────────────────────────────────────────────────────────────────────
@@ -14,9 +14,7 @@ from pydantic import BaseModel, Field
 class DriveType(str, Enum):
     PIKPAK = "pikpak"
     JIANGUOYUN = "jianguoyun"
-    BAIDU = "baidu"
-    ALIYUN = "aliyun"
-    QUARK = "quark"
+    BAIDUYUN = "baiduyun"
 
 
 class SyncStatus(str, Enum):
@@ -38,7 +36,15 @@ class OperationResult(str, Enum):
     FAILED = "failed"
 
 
-# ── FileInfo ─────────────────────────────────────────────────────────────────
+class CloudDownloadStatus(str, Enum):
+    PENDING = "pending"
+    DOWNLOADING = "downloading"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    TIMEOUT = "timeout"
+
+
+# ── FileInfo ──────────────────────────────────────────────────────────────────
 
 class FileInfoSchema(BaseModel):
     """Cloud drive file/folder metadata."""
@@ -49,38 +55,70 @@ class FileInfoSchema(BaseModel):
     is_dir: bool = Field(..., description="True if directory")
     modified: datetime = Field(..., description="Last modified time (ISO 8601)")
     mime_type: str | None = Field(None, description="MIME type (null for directory)")
+    hash: str | None = Field(None, description="File hash (null for directory)")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
-# ── Cloud Drive Requests ──────────────────────────────────────────────────────
+class FileListData(BaseModel):
+    path: str
+    files: list[FileInfoSchema]
+
+
+# ── API Request/Response ───────────────────────────────────────────────────────
+
+class APIResponse(BaseModel):
+    code: int | str = Field(0, description="0 = success, error code otherwise (int or str)")
+    message: str = Field("success")
+    data: Any = Field(None)
+
+    @classmethod
+    def ok(cls, data: Any = None, message: str = "success") -> APIResponse:
+        return cls(code=0, message=message, data=data)
+
+    @classmethod
+    def error(cls, code: str = "UNKNOWN", message: str = "error", detail: str | None = None) -> APIResponse:
+        return cls(code=code, message=message, data={"detail": detail} if detail else None)
+
+
+# ── Cloud Drive Requests ─────────────────────────────────────────────────────
 
 class CloudDriveListRequest(BaseModel):
-    path: str = Field("/", description="Absolute path on the remote; empty returns root")
+    path: str = Field("/", description="Directory path to list (empty defaults to /)")
 
 
 class CloudDriveDetailRequest(BaseModel):
-    path: str = Field(..., min_length=1, description="Absolute path; cannot be empty")
+    path: str = Field(..., description="Full path of file or directory")
 
 
 class CloudDriveMoveRequest(BaseModel):
-    src: str = Field(..., min_length=1, description="Source absolute path")
-    dst: str = Field(..., min_length=1, description="Destination absolute path")
+    src: str = Field(..., description="Source path")
+    dst: str = Field(..., description="Destination path (including filename)")
 
 
 class CloudDriveDeleteRequest(BaseModel):
-    path: str = Field(..., min_length=1, description="Path to delete (cannot be /)")
+    path: str = Field(..., description="Path of file or directory to delete")
 
 
-# ── Sync Job ─────────────────────────────────────────────────────────────────
+class MoveResponseData(BaseModel):
+    src: str
+    dst: str
+    moved: bool
+
+
+class DeleteResponseData(BaseModel):
+    deleted: bool
+    path: str
+
+
+# ── Sync Job ──────────────────────────────────────────────────────────────────
 
 class SyncJobSchema(BaseModel):
     job_id: str = Field(..., description="UUID of the sync job")
+    status: SyncStatus = Field(SyncStatus.PENDING)
     drive_type: DriveType
     source_path: str = Field(..., description="Cloud source path")
     local_path: str = Field(..., description="Local destination path")
-    status: SyncStatus = Field(SyncStatus.PENDING)
     phase: SyncPhase = Field(SyncPhase.DOWNLOADING)
     progress_bytes: int = Field(0, ge=0)
     total_bytes: int = Field(0, ge=0)
@@ -91,8 +129,7 @@ class SyncJobSchema(BaseModel):
     updated_at: datetime
     finished_at: datetime | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SyncRequestData(BaseModel):
@@ -113,39 +150,21 @@ class SyncResponseData(BaseModel):
     created_at: datetime
 
 
-# ── Offline Download ─────────────────────────────────────────────────────────
+# ── Offline Download ──────────────────────────────────────────────────────────
 
 class OfflineDownloadRequest(BaseModel):
-    urls: list[str] = Field(..., min_length=1, description="URLs or magnet links to download")
+    urls: list[str] = Field(..., description="List of HTTP or magnet URLs")
     folder: str = Field("/My Pack", description="Destination folder on PikPak")
 
 
 class OfflineDownloadResponseData(BaseModel):
     task_id: str
-    drive_type: DriveType = DriveType.PIKPAK
     urls_count: int
     destination_folder: str
-    status: str = "pending"
     created_at: datetime
 
 
-# ── API Response Wrapper ──────────────────────────────────────────────────────
-
-class APIResponse(BaseModel):
-    code: int | str = Field(0, description="0 = success, error code otherwise (int or str)")
-    message: str = Field("success")
-    data: Any = Field(None)
-
-    @classmethod
-    def ok(cls, data: Any = None, message: str = "success") -> APIResponse:
-        return cls(code=0, message=message, data=data)
-
-    @classmethod
-    def error(cls, code: str = "UNKNOWN", message: str = "error", detail: str | None = None) -> APIResponse:
-        return cls(code=code, message=message, data={"detail": detail} if detail else None)
-
-
-# ── Operation Log ────────────────────────────────────────────────────────────
+# ── Operation Log ─────────────────────────────────────────────────────────────
 
 class OperationLogSchema(BaseModel):
     id: int
@@ -156,14 +175,14 @@ class OperationLogSchema(BaseModel):
     result: OperationResult
     error_code: str | None = None
     error_message: str | None = None
-    extra: str | None = None  # JSON string
+    extra: dict[str, Any] | None = None
     ip_address: str = "localhost"
     created_at: datetime
 
 
 class OperationLogQuery(BaseModel):
-    page: int = Field(1, ge=1)
-    page_size: int = Field(20, ge=1, le=100)
+    page: int = 1
+    page_size: int = 20
     operation: str | None = None
     drive_type: str | None = None
     start_date: str | None = None
@@ -177,23 +196,15 @@ class OperationLogPageData(BaseModel):
     items: list[OperationLogSchema]
 
 
-# ── Move Response ────────────────────────────────────────────────────────────
+class CloudDownloadJobSchema(BaseModel):
+    id: int
+    task_id: str
+    urls: list[str]
+    folder: str
+    status: CloudDownloadStatus
+    error_message: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    finished_at: datetime | None = None
 
-class MoveResponseData(BaseModel):
-    src: str
-    dst: str
-    moved: bool
-
-
-# ── Delete Response ──────────────────────────────────────────────────────────
-
-class DeleteResponseData(BaseModel):
-    deleted: bool
-    path: str
-
-
-# ── List Response ────────────────────────────────────────────────────────────
-
-class FileListData(BaseModel):
-    path: str
-    files: list[FileInfoSchema]
+    model_config = ConfigDict(from_attributes=True)

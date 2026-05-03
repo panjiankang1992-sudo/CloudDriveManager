@@ -27,8 +27,10 @@ from src.core.schemas import FileInfoSchema
 logger = get_logger("rclone_adapter")
 
 # Progress line regex from rclone copy --progress
+# Handles formats like "Transferred: 1.234 GiB / 10.382 GiB, 13%, ..."
+# and zero bytes (0 B) or zero KiB (0.000 KiB)
 PROGRESS_RE = re.compile(
-    r"Transferred:\s+([\d.]+ [KMGT]iB)\s+/\s+([\d.]+ [KMGT]iB),\s+(\d+)%"
+    r"Transferred:\s+([\d.]+ [KMGT]?i?B)\s+/\s+([\d.]+ [KMGT]iB),\s*(\d+)%"
 )
 
 

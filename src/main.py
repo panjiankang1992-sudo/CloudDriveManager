@@ -36,15 +36,15 @@ def cmd_run(prod: bool = False) -> None:
     from typing import Any
 
     env = "prod" if prod else "dev"
-    cfg: Any = Config.get()  # type: ignore[reportCallIssue]
+    cfg: Any = Config.get(env=env)  # type: ignore[reportCallIssue]
     setup_logger("app", log_file=cfg.log_file, level=cfg.log_level)
 
-    logger.info(f"Starting CloudDriveManager (env={env}) on {cfg.api_host}:{cfg.api_port}")
+    logger.info(f"Starting CloudDriveManager (env={env}) on {cfg.app_host}:{cfg.app_port}")
 
     uvicorn.run(
         "src.app:app",
-        host=cfg.api_host,
-        port=cfg.api_port,
+        host=cfg.app_host,
+        port=cfg.app_port,
         reload=(env == "dev"),
     )
 

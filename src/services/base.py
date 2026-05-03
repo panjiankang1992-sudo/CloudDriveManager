@@ -14,6 +14,7 @@ from src.core.schemas import FileInfoSchema
 from src.adapters.rclone_adapter import RcloneAdapter
 from src.core.config import Config
 from src.core.exceptions import (
+    CloudDriveFileInUseError,
     CloudDriveNotFoundError,
     FileNotFoundError,
     InvalidPathError,
@@ -35,6 +36,18 @@ class CloudDriveService(ABC):
 
     def __init__(self, adapter: RcloneAdapter):
         self._adapter = adapter
+
+    def _check_file_not_in_use(self, path: str) -> None:
+        """Raise CloudDriveFileInUseError if path is being synced by an active job."""
+        from src.services.sync_manager import get_sync_manager
+
+        sm = get_sync_manager()
+        for job in sm._jobs.values():
+            if job.status.value in ("pending", "running") and job.source_path == path:
+                raise CloudDriveFileInUseError(
+                    message=f"File is currently being synced: {path}",
+                    detail=f"Active sync job {job.job_id} is using this file.",
+                )
 
     @abstractmethod
     def list_files(self, path: str = "/") -> List[FileInfoSchema]:
@@ -174,6 +187,7 @@ class _RcloneCloudDrive(CloudDriveService):
             raise ValidationError(message="Path cannot be empty")
         if path == "/":
             raise ValidationError(message="Cannot delete root directory")
+        self._check_file_not_in_use(path)
         self._adapter.delete(path)
         return True
 
@@ -182,6 +196,7 @@ class _RcloneCloudDrive(CloudDriveService):
             raise ValidationError(message="Source path cannot be empty")
         if not dst or not dst.strip():
             raise ValidationError(message="Destination path cannot be empty")
+        self._check_file_not_in_use(src)
         return self._adapter.move_with_mkdir(src, dst)
 
     def download(self, remote_path: str, local_path: str) -> bool:
@@ -250,6 +265,7 @@ class PikPakCloudDrive(CloudDriveService):
             raise ValidationError(message="Path cannot be empty")
         if path == "/":
             raise ValidationError(message="Cannot delete root directory")
+        self._check_file_not_in_use(path)
         self._adapter.delete(path)
         return True
 
@@ -258,6 +274,7 @@ class PikPakCloudDrive(CloudDriveService):
             raise ValidationError(message="Source path cannot be empty")
         if not dst or not dst.strip():
             raise ValidationError(message="Destination path cannot be empty")
+        self._check_file_not_in_use(src)
         return self._adapter.move_with_mkdir(src, dst)
 
     def download(self, remote_path: str, local_path: str) -> bool:
@@ -275,9 +292,22 @@ class PikPakCloudDrive(CloudDriveService):
         )
 
     def cloud_download_add(self, urls: List[str], folder: str = "/My Pack") -> str:
-        # Implementation in src/services/pikpak.py (T038)
+        from src.services.cloud_download_manager import get_cloud_download_manager
+
+        # Create tracking job first (generates UUID task_id)
+        mgr = get_cloud_download_manager()
+        job = mgr.create_job(urls, folder)
+
+        # Kick off the PikPak download asynchronously
         from src.services.pikpak import cloud_download_add as _add
-        return _add(urls, folder)
+        try:
+            pikpak_task_id = _add(urls, folder)
+            # Update with real PikPak task_id for correlation
+            mgr.update_status(job.task_id, "downloading")
+            return pikpak_task_id
+        except Exception:
+            mgr.update_status(job.task_id, "failed", str(Exception))
+            raise
 
 
 # ── Service factory ─────────────────────────────────────────────────────────────
@@ -285,9 +315,7 @@ class PikPakCloudDrive(CloudDriveService):
 _DRIVE_SERVICE_MAP = {
     "pikpak": PikPakCloudDrive,
     "jianguoyun": JianguoyunCloudDrive,
-    "baidu": BaiduCloudDrive,
-    "aliyun": AliyunCloudDrive,
-    "quark": QuarkCloudDrive,
+    "baiduyun": BaiduCloudDrive,
 }
 
 

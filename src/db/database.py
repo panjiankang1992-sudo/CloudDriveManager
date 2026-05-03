@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from typing import Any, Generator, cast
 
 import pymysql
@@ -20,7 +21,7 @@ class Database:
     _instance: Database | None = None
 
     def __init__(self):
-        self._cfg: Config = cast(Config, type.__call__(Config))  # type: ignore[reportGeneralTypeIssues]
+        self._cfg: Config = Config.get()
         self._pool: dict[str, pymysql.Connection] = {}
 
     @classmethod
@@ -86,6 +87,60 @@ class Database:
         with self.cursor(database) as cur:
             cur.execute(sql, params)
             return cast("list[dict[str, Any]]", cast(object, cur.fetchall()))
+
+    # ── Cloud Download Jobs ─────────────────────────────────────────────────────
+
+    def cloud_download_job_insert(
+        self,
+        task_id: str,
+        urls: str,
+        folder: str,
+        status: str = "pending",
+    ) -> int:
+        """Insert a new cloud download job. Returns the inserted row id."""
+        return self.execute_last_id(
+            """
+            INSERT INTO cloud_download_jobs (task_id, urls, folder, status)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (task_id, urls, folder, status),
+        )
+
+    def cloud_download_job_update_status(
+        self,
+        task_id: str,
+        status: str,
+        error_message: str | None = None,
+        finished_at: datetime | None = None,
+    ) -> int:
+        """Update cloud download job status. Returns rows affected."""
+        return self.execute(
+            """
+            UPDATE cloud_download_jobs
+            SET status = %s, error_message = %s, finished_at = %s
+            WHERE task_id = %s
+            """,
+            (status, error_message, finished_at, task_id),
+        )
+
+    def cloud_download_job_get(self, task_id: str) -> dict[str, Any] | None:
+        """Get a cloud download job by task_id."""
+        return self.fetch_one(
+            "SELECT * FROM cloud_download_jobs WHERE task_id = %s",
+            (task_id,),
+        )
+
+    def cloud_download_job_get_pending(self) -> list[dict[str, Any]]:
+        """Get all pending/downloading cloud download jobs for watchdog tracking."""
+        return self.fetch_all(
+            "SELECT * FROM cloud_download_jobs WHERE status IN ('pending', 'downloading')",
+        )
+
+    def cloud_download_job_mark_timeout(self, task_id: str) -> int:
+        """Mark a job as TIMEOUT and set finished_at."""
+        return self.cloud_download_job_update_status(
+            task_id, "timeout", "Task exceeded 30 minute timeout", datetime.now(timezone.utc)
+        )
 
     def close(self, database: str | None = None) -> None:
         """Close connection(s)."""

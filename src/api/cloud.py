@@ -5,9 +5,9 @@ Exposes: POST /cloud/{drive_type}/list, /detail, /move, /delete
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Path, Request
+from fastapi import APIRouter, Depends, Path, Request
 from fastapi.responses import JSONResponse
 
 from src.core.exceptions import (
@@ -31,12 +31,12 @@ from src.core.operation_logger import get_operation_logger
 
 logger = get_logger("cloud_api")
 
-SUPPORTED_DRIVES = {"pikpak", "jianguoyun", "baidu", "aliyun", "quark"}
+SUPPORTED_DRIVES = {"pikpak", "jianguoyun", "baiduyun"}
 
 
 def _error_response(code: str, message: str, detail: str | None = None) -> JSONResponse:
     return JSONResponse(
-        status_code=500,
+        status_code=200,
         content=APIResponse.error(code=code, message=message, detail=detail).model_dump(),
     )
 
@@ -60,6 +60,11 @@ def _log_operation(operation: str, drive_type: str, path: str | None, result: Op
         logger.warning(f"Failed to log operation: {e}")
 
 
+def _get_request(request: Request) -> Request:
+    """FastAPI dependency to inject the current Request object."""
+    return request
+
+
 def create_cloud_router() -> APIRouter:
     """Factory: build and return a cloud drive API router with all endpoints."""
     router = APIRouter(prefix="/cloud", tags=["cloud"])
@@ -69,8 +74,8 @@ def create_cloud_router() -> APIRouter:
     @router.post("/{drive_type}/list", response_model=APIResponse)
     async def list_files(
         body: CloudDriveListRequest,
-        drive_type: str = Path(..., description="Cloud drive type"),
-        request: Request | None = None,
+        drive_type: Annotated[str, Path(description="Cloud drive type")],
+        request: Annotated[Request, Depends(_get_request)],
     ):
         """List files at the given path (FR-001).
 
@@ -107,8 +112,8 @@ def create_cloud_router() -> APIRouter:
     @router.post("/{drive_type}/detail", response_model=APIResponse)
     async def get_detail(
         body: CloudDriveDetailRequest,
-        drive_type: str = Path(..., description="Cloud drive type"),
-        request: Request | None = None,
+        drive_type: Annotated[str, Path(description="Cloud drive type")],
+        request: Annotated[Request, Depends(_get_request)],
     ):
         """Get file/folder metadata (FR-002)."""
         if drive_type.lower() not in SUPPORTED_DRIVES:
@@ -155,8 +160,8 @@ def create_cloud_router() -> APIRouter:
     @router.post("/{drive_type}/move", response_model=APIResponse)
     async def move_file(
         body: CloudDriveMoveRequest,
-        drive_type: str = Path(..., description="Cloud drive type"),
-        request: Request | None = None,
+        drive_type: Annotated[str, Path(description="Cloud drive type")],
+        request: Annotated[Request, Depends(_get_request)],
     ):
         """Move a file or folder (FR-003). Auto-creates destination parent dir."""
         if drive_type.lower() not in SUPPORTED_DRIVES:
@@ -188,8 +193,8 @@ def create_cloud_router() -> APIRouter:
     @router.post("/{drive_type}/delete", response_model=APIResponse)
     async def delete_file(
         body: CloudDriveDeleteRequest,
-        drive_type: str = Path(..., description="Cloud drive type"),
-        request: Request | None = None,
+        drive_type: Annotated[str, Path(description="Cloud drive type")],
+        request: Annotated[Request, Depends(_get_request)],
     ):
         """Delete a file or folder (FR-004). Cannot delete root `/`."""
         if drive_type.lower() not in SUPPORTED_DRIVES:
