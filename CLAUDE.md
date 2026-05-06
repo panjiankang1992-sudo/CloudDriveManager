@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Branch Strategy
 
-**所有改动最终必须合入 `main` 分支。** 开发应在功能分支进行，完成后合并到 main。
+**所有改动最终必须合入 `master` 分支。** 开发应在功能分支进行，完成后合并到 master，合入主分支才算任务执行完成。
 
 ## Project Overview
 
