@@ -1,4 +1,4 @@
-"""PikPak-specific service layer — implements offline download via pikpak_api.py.
+"""PikPak-specific service layer — implements offline download via pikpak_client.py.
 
 This module bridges the CloudDriveService interface with the PikPak HTTP API.
 All methods here are async (sync wrapper is handled by the API layer).
@@ -12,16 +12,16 @@ from typing import TYPE_CHECKING
 from src.core.logger import get_logger
 
 if TYPE_CHECKING:
-    from src.services.pikpak_api import PikPakClient
+    from src.services.pikpak_client import PikPakClient
 
 logger = get_logger("pikpak_service")
 
 
 def _get_pikpak_client() -> "PikPakClient":  # type: ignore[reportMissingImports]
     """Deferred import to avoid circular dependency."""
-    from src.services import pikpak_api as _api_module
+    from src.services import pikpak_client as _client_module
 
-    return _api_module.get_pikpak_client()  # type: ignore[reportAttributeAccessIssue]
+    return _client_module.get_pikpak_client()  # type: ignore[reportAttributeAccessIssue]
 
 
 def _run_async(coro) -> str:

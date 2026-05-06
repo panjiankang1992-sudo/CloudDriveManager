@@ -63,7 +63,8 @@ src/
     └── init_db.py       # Table creation
 ```
 
-**Data flow**: HTTP/MCP request → API router → Service layer → RcloneAdapter/PikPakClient → rclone CLI or PikPak HTTP API
+**Data flow**: HTTP/MCP request → API router → Service layer → RcloneAdapter → rclone CLI
+**Offline download**: PikPakClient (httpx-based) → PikPak HTTP API
 
 ## Key Design Patterns
 
@@ -93,5 +94,9 @@ Tests live in `tests/` with conftest.py setting `CONFIG_ENV=dev` and `RCLONE_PAT
 - **Schema validation**: Pydantic v2
 - **Database**: MySQL via pymysql
 - **Cloud operations**: rclone CLI (pikpak:, jianguoyun:, baiduyun: remotes via Alist WebDAV)
-- **PikPak API**: pikpakapi 0.4.0
+- **PikPak API**: httpx-based client for offline downloads
 - **Type checking**: pyright (basic mode)
+
+## Rclone Configuration
+
+All cloud drive operations use rclone remotes. Users must manually configure rclone before use. See [RCLONE_CONFIG.md](RCLONE_CONFIG.md) for setup instructions.

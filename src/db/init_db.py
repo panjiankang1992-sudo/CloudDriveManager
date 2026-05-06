@@ -8,18 +8,6 @@ from src.db.database import Database
 logger = get_logger("init_db")
 
 SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS cloud_drive_configs (
-    id              INT PRIMARY KEY AUTO_INCREMENT,
-    drive_type      VARCHAR(32) NOT NULL UNIQUE,
-    remote_name     VARCHAR(128) NOT NULL,
-    rclone_path     VARCHAR(256) NOT NULL DEFAULT 'rclone',
-    username        VARCHAR(256) NOT NULL,
-    password_encrypted TEXT NOT NULL,
-    is_enabled      BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS cloud_download_jobs (
     id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
     task_id             VARCHAR(128) NOT NULL COMMENT 'PikPak API returned task ID',
