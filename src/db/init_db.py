@@ -27,6 +27,21 @@ CREATE TABLE IF NOT EXISTS sync_jobs (
     INDEX idx_drive_type (drive_type)
 );
 
+CREATE TABLE IF NOT EXISTS cloud_download_jobs (
+    id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
+    task_id             VARCHAR(128) NOT NULL COMMENT 'Task ID from rclone or PikPak',
+    urls                TEXT NOT NULL COMMENT 'JSON array of URLs',
+    folder              VARCHAR(512) NOT NULL DEFAULT '/My Pack' COMMENT 'Destination folder',
+    status              VARCHAR(16) NOT NULL DEFAULT 'pending' COMMENT 'pending/running/completed/failed/timeout',
+    error_message       TEXT COMMENT 'Error details if failed',
+    created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    finished_at         DATETIME COMMENT 'Completion/failure timestamp',
+    INDEX idx_task_id (task_id),
+    INDEX idx_status (status),
+    INDEX idx_created_at (created_at)
+);
+
 CREATE TABLE IF NOT EXISTS operation_logs (
     id            BIGINT PRIMARY KEY AUTO_INCREMENT,
     op_user       VARCHAR(64) NOT NULL DEFAULT 'admin',

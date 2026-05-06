@@ -218,6 +218,35 @@ def pikpak_offline_download(urls: list[str], folder: str = "/My Pack") -> dict[s
     }
 
 
+@mcp.tool()
+def pikpak_get_offline_download_status(task_id: str) -> dict[str, Any]:
+    """Get status of an offline download task.
+
+    Args:
+        task_id: UUID of the offline download task
+    Returns:
+        {"task_id": str, "urls": list, "folder": str, "status": str, ...}
+    """
+    from src.services.cloud_download_manager import get_cloud_download_manager
+
+    mgr = get_cloud_download_manager()
+    job = mgr.get_job(task_id)
+
+    if job is None:
+        raise ValueError(f"Task not found: {task_id}")
+
+    return {
+        "task_id": job.task_id,
+        "urls": job.urls,
+        "folder": job.folder,
+        "status": job.status.value,
+        "error_message": job.error_message,
+        "created_at": job.created_at.isoformat(),
+        "updated_at": job.updated_at.isoformat(),
+        "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+    }
+
+
 # ── Entry point ─────────────────────────────────────────────────────────────
 
 def run(port: int | None = None) -> None:

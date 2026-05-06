@@ -164,6 +164,17 @@ class OfflineDownloadResponseData(BaseModel):
     created_at: datetime
 
 
+class OfflineDownloadStatusData(BaseModel):
+    task_id: str
+    urls: list[str]
+    folder: str
+    status: str  # pending, running, completed, failed, timeout
+    error_message: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    finished_at: datetime | None = None
+
+
 # ── Operation Log ─────────────────────────────────────────────────────────────
 
 class OperationLogSchema(BaseModel):

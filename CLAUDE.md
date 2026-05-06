@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Branch Strategy
+
+**所有改动最终必须合入 `main` 分支。** 开发应在功能分支进行，完成后合并到 main。
+
 ## Project Overview
 
 CloudDriveManager is a universal cloud drive file manager providing REST API and MCP tools for file operations (list/detail/move/delete/sync/cloud-download) across multiple cloud drives. Currently supports PikPak, JianGuoYun, and BaiduYun (via Alist WebDAV).

@@ -17,6 +17,7 @@ from src.core.schemas import (
     APIResponse,
     OfflineDownloadRequest,
     OfflineDownloadResponseData,
+    OfflineDownloadStatusData,
     OperationResult,
 )
 from src.core.operation_logger import get_operation_logger
@@ -78,3 +79,35 @@ async def create_offline_download(body: OfflineDownloadRequest):
     except Exception as e:
         logger.exception(f"Unexpected error in create_offline_download: {e}")
         return _error_response("OFFLINE_DOWNLOAD_ERROR", str(e))
+
+
+# ── GET /cloud/pikpak/offline-download/{task_id} ─────────────────────────
+
+@router.get("/offline-download/{task_id}", response_model=APIResponse)
+async def get_offline_download_status(task_id: str):
+    """Get status of an offline download task."""
+    try:
+        from src.services.cloud_download_manager import get_cloud_download_manager
+
+        mgr = get_cloud_download_manager()
+        job = mgr.get_job(task_id)
+
+        if job is None:
+            return _error_response("JOB_NOT_FOUND", f"Task not found: {task_id}")
+
+        return APIResponse.ok(
+            data=OfflineDownloadStatusData(
+                task_id=job.task_id,
+                urls=job.urls,
+                folder=job.folder,
+                status=job.status.value,
+                error_message=job.error_message,
+                created_at=job.created_at,
+                updated_at=job.updated_at,
+                finished_at=job.finished_at,
+            ).model_dump()
+        )
+
+    except Exception as e:
+        logger.exception(f"Unexpected error in get_offline_download_status: {e}")
+        return _error_response("INTERNAL_ERROR", str(e))

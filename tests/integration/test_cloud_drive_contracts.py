@@ -229,33 +229,43 @@ class TestCloudDriveCloudDownloadAdd:
 
     def test_pikpak_supports_cloud_download_add(self):
         """PikPakCloudDrive.cloud_download_add uses rclone backend addurl."""
+        mock_job = MagicMock()
+        mock_job.task_id = "task-123"
+
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout="task-123", stderr="")
-            adapter = _make_adapter()
-            service = PikPakCloudDrive(adapter)
+            mock_run.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
+            with patch("src.services.cloud_download_manager.get_cloud_download_manager") as mock_mgr:
+                mock_mgr.return_value.create_job.return_value = mock_job
+                adapter = _make_adapter()
+                service = PikPakCloudDrive(adapter)
 
-            result = service.cloud_download_add(["http://x.com/f.zip"], "/My Pack")
+                result = service.cloud_download_add(["http://x.com/f.zip"], "/My Pack")
 
-            assert result == "task-123"
-            mock_run.assert_called_once()
-            call_args = mock_run.call_args[0][0]
-            assert "backend" in call_args
-            assert "addurl" in call_args
-            assert any("pikpak" in str(a) for a in call_args)
-            assert "http://x.com/f.zip" in call_args
+                assert result == "task-123"
+                mock_run.assert_called_once()
+                call_args = mock_run.call_args[0][0]
+                assert "backend" in call_args
+                assert "addurl" in call_args
+                assert any("pikpak" in str(a) for a in call_args)
+                assert "http://x.com/f.zip" in call_args
 
     def test_pikpak_cloud_download_with_folder(self):
         """PikPakCloudDrive.cloud_download_add includes folder in remote path."""
+        mock_job = MagicMock()
+        mock_job.task_id = "task-456"
+
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout="task-456", stderr="")
-            adapter = _make_adapter()
-            service = PikPakCloudDrive(adapter)
+            mock_run.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
+            with patch("src.services.cloud_download_manager.get_cloud_download_manager") as mock_mgr:
+                mock_mgr.return_value.create_job.return_value = mock_job
+                adapter = _make_adapter()
+                service = PikPakCloudDrive(adapter)
 
-            result = service.cloud_download_add(["magnet:?xt=urn:btih:abc"], "/movies/2026")
+                result = service.cloud_download_add(["magnet:?xt=urn:btih:abc"], "/movies/2026")
 
-            assert result == "task-456"
-            call_args = mock_run.call_args[0][0]
-            assert "pikpak:movies/2026" in call_args
+                assert result == "task-456"
+                call_args = mock_run.call_args[0][0]
+                assert "pikpak:movies/2026" in call_args
 
     def test_jianguoyun_raises_not_implemented(self):
         """JianguoyunCloudDrive.cloud_download_add raises NotImplementedError."""
