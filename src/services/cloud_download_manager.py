@@ -113,7 +113,15 @@ class CloudDownloadJobManager:
 
         # Persist to DB
         urls_json = json.dumps(urls)
-        db_id = self._db.cloud_download_job_insert(task_id, urls_json, folder, "pending")
+        db_id = self._db.job_insert(
+            job_id=task_id,
+            job_type="cloud_download",
+            drive_type="pikpak",
+            source=urls_json,
+            destination=folder,
+            status="pending",
+            phase="downloading",
+        )
         job.id = db_id  # type: ignore[reportAttributeAccessIssue]
 
         with self._lock:
@@ -145,11 +153,11 @@ class CloudDownloadJobManager:
                 job.finished_at = datetime.now(timezone.utc)
 
         # Persist to DB
-        self._db.cloud_download_job_update_status(
-            task_id,
-            status,
-            error_message,
-            job.finished_at,
+        self._db.job_update(
+            job_id=task_id,
+            status=status,
+            error_message=error_message,
+            finished_at=job.finished_at,
         )
 
         logger.info(f"Cloud download job {task_id} status -> {status}")
@@ -160,7 +168,7 @@ class CloudDownloadJobManager:
 
     def load_pending_from_db(self) -> None:
         """Reload pending/running jobs from DB into memory on startup."""
-        rows = self._db.cloud_download_job_get_pending()
+        rows = self._db.job_get_pending(job_type="cloud_download")
         with self._lock:
             for row in rows:
                 task_id = row["task_id"]

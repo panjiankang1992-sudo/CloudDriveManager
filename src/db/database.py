@@ -88,52 +88,75 @@ class Database:
             cur.execute(sql, params)
             return cast("list[dict[str, Any]]", cast(object, cur.fetchall()))
 
-    # ── Cloud Download Jobs ────────────────────────────────────────────────────
+    # ── Unified Jobs ─────────────────────────────────────────────────────────
 
-    def cloud_download_job_insert(
+    def job_insert(
         self,
-        task_id: str,
-        urls: str,
-        folder: str,
+        job_id: str,
+        job_type: str,
+        drive_type: str,
+        source: str,
+        destination: str,
         status: str = "pending",
+        phase: str = "downloading",
     ) -> int:
-        """Insert a new cloud download job. Returns the inserted row id."""
+        """Insert a new job (sync or cloud_download). Returns the inserted row id."""
         return self.execute_last_id(
             """
-            INSERT INTO cloud_download_jobs (task_id, urls, folder, status)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO jobs (job_id, type, drive_type, source, destination, status, phase)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             """,
-            (task_id, urls, folder, status),
+            (job_id, job_type, drive_type, source, destination, status, phase),
         )
 
-    def cloud_download_job_update_status(
+    def job_update(
         self,
-        task_id: str,
+        job_id: str,
         status: str,
+        phase: str | None = None,
+        progress_bytes: int = 0,
+        total_bytes: int = 0,
         error_message: str | None = None,
         finished_at=None,
     ) -> int:
-        """Update cloud download job status. Returns rows affected."""
-        return self.execute(
-            """
-            UPDATE cloud_download_jobs
-            SET status = %s, error_message = %s, finished_at = %s, updated_at = NOW()
-            WHERE task_id = %s
-            """,
-            (status, error_message, finished_at, task_id),
-        )
+        """Update job status/progress. Returns rows affected."""
+        if phase is not None:
+            return self.execute(
+                """
+                UPDATE jobs
+                SET status = %s, phase = %s, progress_bytes = %s, total_bytes = %s,
+                    error_message = %s, finished_at = %s, updated_at = NOW()
+                WHERE job_id = %s
+                """,
+                (status, phase, progress_bytes, total_bytes, error_message, finished_at, job_id),
+            )
+        else:
+            return self.execute(
+                """
+                UPDATE jobs
+                SET status = %s, progress_bytes = %s, total_bytes = %s,
+                    error_message = %s, finished_at = %s, updated_at = NOW()
+                WHERE job_id = %s
+                """,
+                (status, progress_bytes, total_bytes, error_message, finished_at, job_id),
+            )
 
-    def cloud_download_job_get(self, task_id: str) -> dict[str, Any] | None:
-        """Get a cloud download job by task_id."""
+    def job_get(self, job_id: str) -> dict[str, Any] | None:
+        """Get a job by job_id."""
         return self.fetch_one(
-            "SELECT * FROM cloud_download_jobs WHERE task_id = %s",
-            (task_id,),
+            "SELECT * FROM jobs WHERE job_id = %s",
+            (job_id,),
         )
 
-    def cloud_download_job_get_pending(self) -> list[dict[str, Any]]:
-        """Get all pending/running cloud download jobs for watchdog tracking."""
+    def job_get_pending(self, job_type: str | None = None) -> list[dict[str, Any]]:
+        """Get all pending/running jobs, optionally filtered by type."""
+        if job_type:
+            return self.fetch_all(
+                "SELECT * FROM jobs WHERE status IN ('pending', 'running') AND type = %s",
+                (job_type,),
+            )
         return self.fetch_all(
-            "SELECT * FROM cloud_download_jobs WHERE status IN ('pending', 'running')",
+            "SELECT * FROM jobs WHERE status IN ('pending', 'running')",
         )
 
     def close(self, database: str | None = None) -> None:

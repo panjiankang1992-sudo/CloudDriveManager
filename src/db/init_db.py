@@ -8,12 +8,13 @@ from src.db.database import Database
 logger = get_logger("init_db")
 
 SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS sync_jobs (
-    id              INT PRIMARY KEY AUTO_INCREMENT,
+CREATE TABLE IF NOT EXISTS jobs (
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT,
     job_id          VARCHAR(64) NOT NULL UNIQUE,
-    drive_type      VARCHAR(32) NOT NULL,
-    source_path     VARCHAR(1024) NOT NULL,
-    local_path      VARCHAR(1024) NOT NULL,
+    type            VARCHAR(32) NOT NULL COMMENT 'sync or cloud_download',
+    drive_type      VARCHAR(32) NOT NULL COMMENT 'pikpak/jianguoyun/baiduyun',
+    source          TEXT COMMENT 'JSON: source_path for sync, urls array for cloud_download',
+    destination     VARCHAR(1024) NOT NULL COMMENT 'local_path for sync, folder for cloud_download',
     status          VARCHAR(16) NOT NULL DEFAULT 'pending',
     phase           VARCHAR(24) NOT NULL DEFAULT 'downloading',
     progress_bytes  BIGINT NOT NULL DEFAULT 0,
@@ -23,22 +24,11 @@ CREATE TABLE IF NOT EXISTS sync_jobs (
     error_message   TEXT,
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    finished_at     DATETIME COMMENT 'Completion/failure timestamp',
+    INDEX idx_job_id (job_id),
+    INDEX idx_type (type),
     INDEX idx_status (status),
-    INDEX idx_drive_type (drive_type)
-);
-
-CREATE TABLE IF NOT EXISTS cloud_download_jobs (
-    id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
-    task_id             VARCHAR(128) NOT NULL COMMENT 'Task ID from rclone or PikPak',
-    urls                TEXT NOT NULL COMMENT 'JSON array of URLs',
-    folder              VARCHAR(512) NOT NULL DEFAULT '/My Pack' COMMENT 'Destination folder',
-    status              VARCHAR(16) NOT NULL DEFAULT 'pending' COMMENT 'pending/running/completed/failed/timeout',
-    error_message       TEXT COMMENT 'Error details if failed',
-    created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    finished_at         DATETIME COMMENT 'Completion/failure timestamp',
-    INDEX idx_task_id (task_id),
-    INDEX idx_status (status),
+    INDEX idx_drive_type (drive_type),
     INDEX idx_created_at (created_at)
 );
 

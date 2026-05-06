@@ -237,7 +237,8 @@ class SyncJobManager:
             raise
 
     def _persist_job(self, job: _SyncJob, insert: bool = True) -> None:
-        """Write job state to MySQL."""
+        """Write job state to MySQL unified jobs table."""
+        import json
         status_map = {
             _JobState.PENDING: "pending",
             _JobState.RUNNING: "running",
@@ -251,35 +252,26 @@ class SyncJobManager:
             SyncPhase.COMPLETED: "completed",
         }
 
-        now = datetime.now(timezone.utc)
+        source_json = json.dumps({"source_path": job.source_path})
         if insert:
-            self._db.execute(
-                """
-                INSERT INTO sync_jobs
-                    (job_id, drive_type, source_path, local_path, status, phase,
-                     progress_bytes, total_bytes, error_message, created_at, updated_at, finished_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    job.job_id, job.drive_type, job.source_path, job.local_path,
-                    status_map[job.status], phase_map.get(job.phase, "downloading"),
-                    job.progress_bytes, job.total_bytes, job.error_message,
-                    job.created_at, job.updated_at, job.finished_at,
-                ),
+            self._db.job_insert(
+                job_id=job.job_id,
+                job_type="sync",
+                drive_type=job.drive_type,
+                source=source_json,
+                destination=job.local_path,
+                status=status_map[job.status],
+                phase=phase_map.get(job.phase, "downloading"),
             )
         else:
-            self._db.execute(
-                """
-                UPDATE sync_jobs SET
-                    status=%s, phase=%s, progress_bytes=%s, total_bytes=%s,
-                    error_message=%s, updated_at=%s, finished_at=%s
-                WHERE job_id=%s
-                """,
-                (
-                    status_map[job.status], phase_map.get(job.phase, "downloading"),
-                    job.progress_bytes, job.total_bytes, job.error_message,
-                    job.updated_at, job.finished_at, job.job_id,
-                ),
+            self._db.job_update(
+                job_id=job.job_id,
+                status=status_map[job.status],
+                phase=phase_map.get(job.phase, "downloading"),
+                progress_bytes=job.progress_bytes,
+                total_bytes=job.total_bytes,
+                error_message=job.error_message,
+                finished_at=job.finished_at,
             )
 
 
