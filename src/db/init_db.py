@@ -28,19 +28,6 @@ CREATE TABLE IF NOT EXISTS sync_jobs (
 );
 
 CREATE TABLE IF NOT EXISTS operation_logs (
-    id                  INT PRIMARY KEY AUTO_INCREMENT,
-    task_id             VARCHAR(128) NOT NULL,
-    drive_type          VARCHAR(32) NOT NULL DEFAULT 'pikpak',
-    urls                JSON NOT NULL,
-    destination_folder  VARCHAR(1024) NOT NULL DEFAULT '/My Pack',
-    status              VARCHAR(16) NOT NULL DEFAULT 'pending',
-    error_message       TEXT,
-    created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE INDEX idx_task_id (task_id)
-);
-
-CREATE TABLE IF NOT EXISTS operation_logs (
     id            BIGINT PRIMARY KEY AUTO_INCREMENT,
     op_user       VARCHAR(64) NOT NULL DEFAULT 'admin',
     drive_type    VARCHAR(32),
