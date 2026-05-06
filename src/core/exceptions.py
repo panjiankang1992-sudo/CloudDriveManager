@@ -136,16 +136,6 @@ class SyncError(ServiceError):
     MESSAGE = "Cloud sync operation failed."
 
 
-class OfflineDownloadError(ServiceError):
-    CODE = "OFFLINE_DOWNLOAD_ERROR"
-    MESSAGE = "Offline download task creation failed."
-
-
-class OfflineDownloadTimeoutError(OfflineDownloadError):
-    CODE = "OFFLINE_DOWNLOAD_TIMEOUT"
-    MESSAGE = "Offline download timed out."
-
-
 # ── Sync job errors ────────────────────────────────────────────────────────────
 
 

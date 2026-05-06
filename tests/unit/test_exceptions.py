@@ -16,8 +16,6 @@ from src.core.exceptions import (
     JobNotFoundError,
     InvalidJobStateError,
     OperationQueueFullError,
-    OfflineDownloadError,
-    OfflineDownloadTimeoutError,
 )
 
 
@@ -109,16 +107,3 @@ class TestOperationQueueFullError:
     def test_code(self):
         e = OperationQueueFullError(message="too many jobs")
         assert e.CODE == "OPERATION_QUEUE_FULL"
-
-
-class TestOfflineDownloadError:
-    def test_code(self):
-        e = OfflineDownloadError(message="download failed")
-        assert e.CODE == "OFFLINE_DOWNLOAD_ERROR"
-
-
-class TestOfflineDownloadTimeoutError:
-    def test_code(self):
-        e = OfflineDownloadTimeoutError(message="rate limited")
-        assert e.CODE == "OFFLINE_DOWNLOAD_TIMEOUT"
-        assert e.CODE != "OFFLINE_DOWNLOAD_ERROR"  # subclass should override
