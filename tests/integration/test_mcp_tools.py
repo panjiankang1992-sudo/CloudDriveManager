@@ -1,7 +1,6 @@
 """Integration contract tests — verify MCP tools produce identical schemas to HTTP API endpoints.
 
-T020: Verifies MCP tools mirror the HTTP API response schemas for pikpak_list_files
-and pikpak_offline_download.
+T020: Verifies MCP tools mirror the HTTP API response schemas for pikpak_list_files.
 """
 
 from __future__ import annotations
@@ -77,37 +76,6 @@ class TestMCPListFilesContract:
 
             mock_service.list_files.assert_called_once_with("/")
             assert result["path"] == "/"
-
-
-class TestMCPOfflineDownloadContract:
-    """MCP pikpak_offline_download response schema must match OfflineDownloadResponseData."""
-
-    def test_mcp_offline_download_returns_task_id_urls_count_folder(self):
-        """MCP pikpak_offline_download returns {task_id, urls_count, destination_folder}."""
-        mock_job = MagicMock()
-        mock_job.task_id = "local-uuid-123"
-
-        mock_mgr = MagicMock()
-        mock_mgr.create_job.return_value = mock_job
-
-        with patch("src.services.cloud_download_manager.get_cloud_download_manager", return_value=mock_mgr):
-            with patch("src.services.pikpak.cloud_download_add", return_value="pikpak-task-456"):
-                import importlib
-                import src.mcp.server
-                importlib.reload(src.mcp.server)
-                from src.mcp.server import pikpak_offline_download
-
-                result = pikpak_offline_download(
-                    urls=["https://example.com/file.zip", "magnet:?xt=urn:btih:xyz"],
-                    folder="/My Pack",
-                )
-
-                assert "task_id" in result
-                assert "urls_count" in result
-                assert "destination_folder" in result
-                assert result["task_id"] == "pikpak-task-456"
-                assert result["urls_count"] == 2
-                assert result["destination_folder"] == "/My Pack"
 
 
 class TestMCPOtherDrives:

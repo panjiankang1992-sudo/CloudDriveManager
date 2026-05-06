@@ -225,22 +225,15 @@ class TestCloudDriveMove:
 
 
 class TestCloudDriveCloudDownloadAdd:
-    """cloud_download_add contract: PikPak only, others raise NotImplementedError."""
+    """cloud_download_add contract: all drives raise NotImplementedError."""
 
-    def test_pikpak_supports_cloud_download_add(self):
-        """PikPakCloudDrive supports cloud_download_add."""
+    def test_pikpak_raises_not_implemented(self):
+        """PikPakCloudDrive.cloud_download_add raises NotImplementedError."""
         adapter = _make_adapter()
         service = PikPakCloudDrive(adapter)
 
-        mock_mgr = MagicMock()
-        mock_job = MagicMock()
-        mock_job.task_id = "local-task-id"
-        mock_mgr.create_job.return_value = mock_job
-
-        with patch("src.services.cloud_download_manager.get_cloud_download_manager", return_value=mock_mgr):
-            with patch("src.services.pikpak.cloud_download_add", return_value="pikpak-task-123"):
-                result = service.cloud_download_add(["http://x.com/f.zip"], "/My Pack")
-                assert result == "pikpak-task-123"
+        with pytest.raises(NotImplementedError):
+            service.cloud_download_add(["http://x.com/f.zip"], "/My Pack")
 
     def test_jianguoyun_raises_not_implemented(self):
         """JianguoyunCloudDrive.cloud_download_add raises NotImplementedError."""

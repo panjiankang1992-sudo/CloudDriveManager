@@ -19,8 +19,6 @@ from src.core.schemas import (
     SyncPhase,
     OperationResult,
     DriveType,
-    OfflineDownloadRequest,
-    OfflineDownloadResponseData,
 )
 
 
@@ -190,30 +188,3 @@ class TestDriveType:
         assert DriveType.PIKPAK == "pikpak"
         assert DriveType.JIANGUOYUN == "jianguoyun"
         assert DriveType.BAIDUYUN == "baiduyun"
-
-
-class TestOfflineDownloadRequest:
-    def test_multiple_urls(self):
-        req = OfflineDownloadRequest(
-            urls=["https://example.com/file.zip", "magnet:?xt=urn:btih:abc"],
-            folder="/My Pack",
-        )
-        assert len(req.urls) == 2
-        assert req.folder == "/My Pack"
-
-    def test_default_folder(self):
-        req = OfflineDownloadRequest(urls=["https://example.com/file.zip"])
-        assert req.folder == "/My Pack"
-
-
-class TestOfflineDownloadResponseData:
-    def test_response_data(self):
-        now = datetime.now(timezone.utc)
-        data = OfflineDownloadResponseData(
-            task_id="task-001",
-            urls_count=3,
-            destination_folder="/My Pack",
-            created_at=now,
-        )
-        assert data.task_id == "task-001"
-        assert data.urls_count == 3

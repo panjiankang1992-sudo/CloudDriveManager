@@ -150,20 +150,6 @@ class SyncResponseData(BaseModel):
     created_at: datetime
 
 
-# ── Offline Download ──────────────────────────────────────────────────────────
-
-class OfflineDownloadRequest(BaseModel):
-    urls: list[str] = Field(..., description="List of HTTP or magnet URLs")
-    folder: str = Field("/My Pack", description="Destination folder on PikPak")
-
-
-class OfflineDownloadResponseData(BaseModel):
-    task_id: str
-    urls_count: int
-    destination_folder: str
-    created_at: datetime
-
-
 # ── Operation Log ─────────────────────────────────────────────────────────────
 
 class OperationLogSchema(BaseModel):

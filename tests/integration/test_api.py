@@ -36,7 +36,7 @@ def test_cloud_router_registered():
     # Check routes are registered (at least one /cloud/{drive_type}/list exists)
     routes = [r.path for r in app.routes]
     cloud_routes = [r for r in routes if r.startswith("/cloud")]
-    assert len(cloud_routes) >= 5, f"Expected ≥5 cloud routes, got: {cloud_routes}"
+    assert len(cloud_routes) >= 4, f"Expected ≥4 cloud routes, got: {cloud_routes}"
 
 
 def test_all_required_endpoints():
@@ -52,7 +52,6 @@ def test_all_required_endpoints():
         "/cloud/sync",
         "/cloud/sync/{job_id}/status",
         "/cloud/sync/{job_id}/cancel",
-        "/cloud/pikpak/offline-download",
         "/cloud/admin/operation-logs",
     }
     for expected in required:
@@ -83,11 +82,6 @@ class TestAllDriveTypesRegistered:
         app = self._get_app()
         routes = {r.path for r in app.routes}
         assert any(_path_matches("/cloud/{drive_type}/list", p) for p in routes)
-
-    def test_pikpak_offline_download_route_exists(self):
-        app = self._get_app()
-        routes = {r.path for r in app.routes}
-        assert "/cloud/pikpak/offline-download" in routes
 
 
 class TestErrorCodes:

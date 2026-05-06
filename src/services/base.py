@@ -243,7 +243,7 @@ class QuarkCloudDrive(_RcloneCloudDrive):
 
 
 class PikPakCloudDrive(CloudDriveService):
-    """PikPak cloud drive — rclone for basic ops, PikPak API for offline download."""
+    """PikPak cloud drive — all operations via rclone."""
 
     def __init__(
         self,
@@ -292,22 +292,7 @@ class PikPakCloudDrive(CloudDriveService):
         )
 
     def cloud_download_add(self, urls: List[str], folder: str = "/My Pack") -> str:
-        from src.services.cloud_download_manager import get_cloud_download_manager
-
-        # Create tracking job first (generates UUID task_id)
-        mgr = get_cloud_download_manager()
-        job = mgr.create_job(urls, folder)
-
-        # Kick off the PikPak download asynchronously
-        from src.services.pikpak import cloud_download_add as _add
-        try:
-            pikpak_task_id = _add(urls, folder)
-            # Update with real PikPak task_id for correlation
-            mgr.update_status(job.task_id, "downloading")
-            return pikpak_task_id
-        except Exception:
-            mgr.update_status(job.task_id, "failed", str(Exception))
-            raise
+        raise NotImplementedError("PikPak does not support offline download via API.")
 
 
 # ── Service factory ─────────────────────────────────────────────────────────────
