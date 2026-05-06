@@ -20,6 +20,7 @@ from src.core.logger import get_logger, setup_logger
 from src.core.exceptions import CloudDriveError
 from src.api.cloud import create_cloud_router
 from src.api.sync import router as sync_router, set_sync_manager
+from src.api.pikpak_offline import router as pikpak_router
 from src.api.operation_log import router as operation_log_router
 
 logger = get_logger("app")
@@ -80,6 +81,7 @@ def create_app() -> FastAPI:
     # ── Routers ────────────────────────────────────────────────────────────
     app.include_router(create_cloud_router())
     app.include_router(sync_router)
+    app.include_router(pikpak_router)
     app.include_router(operation_log_router)
 
     # ── Health check ───────────────────────────────────────────────────────

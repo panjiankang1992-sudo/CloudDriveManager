@@ -292,7 +292,8 @@ class PikPakCloudDrive(CloudDriveService):
         )
 
     def cloud_download_add(self, urls: List[str], folder: str = "/My Pack") -> str:
-        raise NotImplementedError("PikPak does not support offline download via API.")
+        from src.services.pikpak import cloud_download_add as _add
+        return _add(urls, folder)
 
 
 # ── Service factory ─────────────────────────────────────────────────────────────

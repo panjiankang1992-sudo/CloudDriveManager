@@ -286,6 +286,47 @@ class RcloneAdapter:
 
     # ── Utility ──────────────────────────────────────────────────────────────
 
+    def backend_addurl(self, path: str, url: str) -> str:
+        """Execute rclone backend addurl for offline download (PikPak).
+
+        Args:
+            path: Destination folder path on the remote (e.g. /movies/2026 or /)
+            url: HTTP or magnet URL to download
+
+        Returns:
+            Task ID or status string from rclone output
+        """
+        # Build remote:path string
+        if path and path != "/":
+            remote_with_path = f"{self.remote_name}{path.lstrip('/')}"
+        else:
+            remote_with_path = self.remote_name.rstrip(":")
+
+        cmd = [self.rclone_path, "backend", "addurl", remote_with_path, url]
+        logger.info(f"Running: {' '.join(cmd)}")
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+        except FileNotFoundError:
+            raise RcloneNotFoundError(f"rclone not found at: {self.rclone_path}")
+        except subprocess.TimeoutExpired:
+            raise RcloneTimeoutError("rclone backend addurl timed out")
+
+        if result.returncode != 0:
+            logger.error(f"rclone failed: {result.stderr}")
+            raise RcloneExecutionError(
+                message=f"rclone backend addurl failed with code {result.returncode}",
+                detail=result.stderr.strip()[:200],
+            )
+
+        return result.stdout.strip() if result.stdout.strip() else "ok"
+
     def remote_exists(self, path: str) -> bool:
         """Check if a remote path exists."""
         try:

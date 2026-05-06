@@ -225,15 +225,37 @@ class TestCloudDriveMove:
 
 
 class TestCloudDriveCloudDownloadAdd:
-    """cloud_download_add contract: all drives raise NotImplementedError."""
+    """cloud_download_add contract: PikPak supports it, others raise NotImplementedError."""
 
-    def test_pikpak_raises_not_implemented(self):
-        """PikPakCloudDrive.cloud_download_add raises NotImplementedError."""
-        adapter = _make_adapter()
-        service = PikPakCloudDrive(adapter)
+    def test_pikpak_supports_cloud_download_add(self):
+        """PikPakCloudDrive.cloud_download_add uses rclone backend addurl."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="task-123", stderr="")
+            adapter = _make_adapter()
+            service = PikPakCloudDrive(adapter)
 
-        with pytest.raises(NotImplementedError):
-            service.cloud_download_add(["http://x.com/f.zip"], "/My Pack")
+            result = service.cloud_download_add(["http://x.com/f.zip"], "/My Pack")
+
+            assert result == "task-123"
+            mock_run.assert_called_once()
+            call_args = mock_run.call_args[0][0]
+            assert "backend" in call_args
+            assert "addurl" in call_args
+            assert any("pikpak" in str(a) for a in call_args)
+            assert "http://x.com/f.zip" in call_args
+
+    def test_pikpak_cloud_download_with_folder(self):
+        """PikPakCloudDrive.cloud_download_add includes folder in remote path."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="task-456", stderr="")
+            adapter = _make_adapter()
+            service = PikPakCloudDrive(adapter)
+
+            result = service.cloud_download_add(["magnet:?xt=urn:btih:abc"], "/movies/2026")
+
+            assert result == "task-456"
+            call_args = mock_run.call_args[0][0]
+            assert "pikpak:movies/2026" in call_args
 
     def test_jianguoyun_raises_not_implemented(self):
         """JianguoyunCloudDrive.cloud_download_add raises NotImplementedError."""

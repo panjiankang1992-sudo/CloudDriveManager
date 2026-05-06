@@ -196,6 +196,28 @@ def pikpak_cancel_sync(job_id: str) -> dict[str, Any]:
     return sm.cancel(job_id).to_schema().model_dump()
 
 
+# ── Offline Download ──────────────────────────────────────────────────────────
+
+@mcp.tool()
+def pikpak_offline_download(urls: list[str], folder: str = "/My Pack") -> dict[str, Any]:
+    """Submit an offline download task to PikPak (HTTP/magnet -> PikPak cloud).
+
+    Args:
+        urls: List of HTTP or magnet URLs
+        folder: Destination folder on PikPak (default: /My Pack)
+    Returns:
+        {"task_id": str, "urls_count": int, "destination_folder": str}
+    """
+    service = get_drive_service("pikpak")
+    task_id = service.cloud_download_add(urls, folder)
+
+    return {
+        "task_id": task_id,
+        "urls_count": len(urls),
+        "destination_folder": folder,
+    }
+
+
 # ── Entry point ─────────────────────────────────────────────────────────────
 
 def run(port: int | None = None) -> None:
