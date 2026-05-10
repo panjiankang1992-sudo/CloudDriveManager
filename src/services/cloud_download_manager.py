@@ -111,18 +111,21 @@ class CloudDownloadJobManager:
             updated_at=now,
         )
 
-        # Persist to DB
+        # Persist to DB (best-effort — in-memory state is authoritative)
         urls_json = json.dumps(urls)
-        db_id = self._db.job_insert(
-            job_id=task_id,
-            job_type="cloud_download",
-            drive_type="pikpak",
-            source=urls_json,
-            destination=folder,
-            status="pending",
-            phase="downloading",
-        )
-        job.id = db_id  # type: ignore[reportAttributeAccessIssue]
+        try:
+            db_id = self._db.job_insert(
+                job_id=task_id,
+                job_type="cloud_download",
+                drive_type="pikpak",
+                source=urls_json,
+                destination=folder,
+                status="pending",
+                phase="downloading",
+            )
+            job.id = db_id  # type: ignore[reportAttributeAccessIssue]
+        except Exception as e:
+            logger.warning(f"Failed to persist cloud download job {task_id} to DB: {e}")
 
         with self._lock:
             self._jobs[task_id] = job
@@ -152,13 +155,16 @@ class CloudDownloadJobManager:
             if status in ("completed", "failed", "timeout"):
                 job.finished_at = datetime.now(timezone.utc)
 
-        # Persist to DB
-        self._db.job_update(
-            job_id=task_id,
-            status=status,
-            error_message=error_message,
-            finished_at=job.finished_at,
-        )
+        # Persist to DB (best-effort)
+        try:
+            self._db.job_update(
+                job_id=task_id,
+                status=status,
+                error_message=error_message,
+                finished_at=job.finished_at,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to persist job update {task_id} to DB: {e}")
 
         logger.info(f"Cloud download job {task_id} status -> {status}")
 
@@ -167,20 +173,31 @@ class CloudDownloadJobManager:
         return self._jobs.get(task_id)
 
     def load_pending_from_db(self) -> None:
-        """Reload pending/running jobs from DB into memory on startup."""
-        rows = self._db.job_get_pending(job_type="cloud_download")
+        """Reload pending/running jobs from DB into memory on startup.
+
+        If the database is unavailable, this is a no-op — jobs start fresh.
+        """
+        try:
+            rows = self._db.job_get_pending(job_type="cloud_download")
+        except Exception as e:
+            logger.warning(f"Cannot load pending jobs from DB: {e}")
+            return
+
         with self._lock:
             for row in rows:
                 task_id = row["task_id"]
-                urls = json.loads(row["urls"])
+                try:
+                    urls = json.loads(row["source"])
+                except (json.JSONDecodeError, KeyError):
+                    urls = []
                 job = CloudDownloadJob(
                     task_id=task_id,
                     urls=urls,
-                    folder=row["folder"],
+                    folder=row.get("destination", ""),
                     status=_CloudDownloadState(row["status"]),
                     error_message=row.get("error_message"),
-                    created_at=row["created_at"],
-                    updated_at=row["updated_at"],
+                    created_at=row.get("created_at", datetime.now(timezone.utc)),
+                    updated_at=row.get("updated_at", datetime.now(timezone.utc)),
                     finished_at=row.get("finished_at"),
                 )
                 self._jobs[task_id] = job

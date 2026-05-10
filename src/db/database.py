@@ -1,9 +1,15 @@
-"""MySQL database connection management."""
+"""MySQL database connection management — lazy, optional, auto-configured.
+
+The database is NOT required for basic cloud operations (list/detail/move/delete).
+It IS required for: sync jobs, operation logs, offline download tracking.
+
+Connection happens lazily on first use, not at import time.
+If connection fails, a clear error message shows which env vars to set.
+"""
 
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import datetime, timezone
 from typing import Any, Generator, cast
 
 import pymysql
@@ -16,13 +22,18 @@ logger = get_logger("database")
 
 
 class Database:
-    """MySQL database connection manager (lazy singleton)."""
+    """MySQL database connection manager (lazy singleton).
+
+    Callers never pass credentials — everything is resolved from
+    environment variables or YAML config automatically.
+    """
 
     _instance: Database | None = None
 
     def __init__(self):
         self._cfg: Config = Config.get()
         self._pool: dict[str, pymysql.Connection] = {}
+        self._available: bool | None = None  # None = untested, True/False after first attempt
 
     @classmethod
     def get(cls) -> Database:
@@ -30,22 +41,55 @@ class Database:
             cls._instance = cls()
         return cls._instance
 
+    @property
+    def is_available(self) -> bool:
+        """Check if the database is reachable. Cached after first check."""
+        if self._available is None:
+            try:
+                self.connection()
+                self._available = True
+            except Exception:
+                self._available = False
+        return self._available
+
     def connection(self, database: str | None = None) -> pymysql.Connection:
-        """Get a MySQL connection (thread-safe per database)."""
+        """Get a MySQL connection.
+
+        Connects lazily on first use. Raises pymysql.Error with a clear
+        message if connection fails — no credentials are required from the caller.
+        """
         db = database or self._cfg.database_name
-        if db not in self._pool or not self._pool[db].open:
-            logger.info(f"Connecting to MySQL {db} at {self._cfg.database_host}:{self._cfg.database_port}")
+        if db in self._pool and self._pool[db].open:
+            return self._pool[db]
+
+        host = self._cfg.database_host
+        port = self._cfg.database_port
+        user = self._cfg.database_username
+        password = self._cfg.database_password
+
+        logger.info(f"Connecting to MySQL {db} at {host}:{port} as {user}")
+
+        try:
             self._pool[db] = pymysql.connect(
-                host=self._cfg.database_host,
-                port=self._cfg.database_port,
-                user=self._cfg.database_username,
-                password=self._cfg.database_password,
+                host=host,
+                port=port,
+                user=user,
+                password=password,
                 database=db,
                 charset="utf8mb4",
                 cursorclass=DictCursor,
                 autocommit=True,
             )
-        return self._pool[db]
+            self._available = True
+            return self._pool[db]
+        except pymysql.Error as e:
+            logger.error(f"MySQL connection failed: {e}")
+            raise pymysql.Error(
+                f"Database connection failed. "
+                f"Set CLOUD_DB_HOST, CLOUD_DB_USER, CLOUD_DB_PASSWORD env vars. "
+                f"Tried {user}@{host}:{port}/{db}. "
+                f"Error: {e}"
+            ) from e
 
     @contextmanager
     def cursor(self, database: str | None = None) -> Generator[DictCursor, None, None]:
@@ -53,7 +97,7 @@ class Database:
 
         Usage:
             with db.cursor() as cur:
-                cur.execute("SELECT * FROM sync_jobs")
+                cur.execute("SELECT * FROM jobs")
                 rows = cur.fetchall()
         """
         conn = self.connection(database)

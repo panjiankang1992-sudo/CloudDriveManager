@@ -1,10 +1,8 @@
-"""FastAPI application entry point.
+"""FastAPI application entry point — HTTP server on configurable port.
 
-HTTPServer (port 29312, config driven).
-MCP server (port 29313) via cloud-drive-mcp package.
+No credentials or database setup required from callers.
+All configuration via environment variables (CLOUD_* prefix) or YAML files.
 """
-
-from __future__ import annotations
 
 from __future__ import annotations
 
@@ -39,12 +37,13 @@ async def lifespan(app: FastAPI):
     )
 
     # Initialize sync manager (lazy, but prime it now)
+    # Database-dependent services are optional — the API still works without them
     try:
         from src.services.sync_manager import get_sync_manager
         set_sync_manager(get_sync_manager())
         logger.info("Sync manager initialized")
     except Exception as e:
-        logger.warning(f"Sync manager init skipped: {e}")
+        logger.warning(f"Sync manager unavailable (DB may be down): {e}")
 
     # ── Shutdown ──────────────────────────────────────────────────────────
     yield
@@ -72,7 +71,7 @@ def create_app() -> FastAPI:
     # ── CORS ───────────────────────────────────────────────────────────────
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # tighten for production
+        allow_origins=["*"] if cfg.env == "dev" else [cfg.app_host],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

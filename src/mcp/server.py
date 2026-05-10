@@ -250,11 +250,16 @@ def pikpak_get_offline_download_status(task_id: str) -> dict[str, Any]:
 # ── Entry point ─────────────────────────────────────────────────────────────
 
 def run(port: int | None = None) -> None:
-    """Start the MCP server."""
+    """Start the MCP server.
+
+    Port resolution order: explicit argument > CLOUD_MCP_PORT env var > config > 29313.
+    Host resolution: CLOUD_APP_HOST env var > config app.host > 127.0.0.1.
+    """
     cfg = _cfg()
-    listen_port = port or 29313
-    logger.info(f"Starting MCP server on port {listen_port}")
-    mcp.run(transport="http", host="0.0.0.0", port=listen_port)
+    listen_port = port or cfg.mcp_port
+    listen_host = cfg.app_host
+    logger.info(f"Starting MCP server on {listen_host}:{listen_port}")
+    mcp.run(transport="http", host=listen_host, port=listen_port)
 
 
 if __name__ == "__main__":
