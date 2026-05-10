@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Branch Strategy
 
-**所有改动最终必须合入 `master` 分支。** 开发应在功能分支进行，完成后合并到 master，合入主分支才算任务执行完成。
+**所有改动最终必须合入 `master` 分支。** 开发应在功能分支进行，完成后合并到 master。
 
 ## Project Overview
 
@@ -81,10 +81,10 @@ src/
 `RcloneAdapter` wraps the rclone CLI subprocess. It is thread-safe for concurrent use. Progress parsing uses a regex on `rclone copy --progress` output.
 
 ### Config-driven singleton (`core/config.py`)
-`Config.get()` loads `config/config_{ENV}.yaml` (ENV from `CONFIG_ENV` env var, default `dev`). All settings are accessed as typed properties.
+`Config.get()` loads `config/config_{ENV}.yaml` (ENV from `CLOUD_ENV` env var, default `dev`). All settings are accessed as typed properties. Environment variables (CLOUD_DB_HOST, CLOUD_DB_PASSWORD, CLOUD_APP_PORT, etc.) take precedence over YAML config.
 
 ### Sync job architecture (`services/sync_manager.py`)
-Uses an in-memory `_SyncJob` dataclass + `ThreadPoolExecutor` (max 5 workers). Jobs are also persisted to MySQL `sync_jobs` table. Cancellation uses `threading.Event`.
+Uses an in-memory `_SyncJob` dataclass + `ThreadPoolExecutor` (max 5 workers). Jobs are also persisted to MySQL `jobs` table. Cancellation uses `threading.Event`.
 
 ## Testing
 
