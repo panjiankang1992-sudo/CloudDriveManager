@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 
 from src.core.schemas import (
     APIResponse,
@@ -19,6 +20,14 @@ from src.core.schemas import (
     SyncPhase,
     OperationResult,
     DriveType,
+    FileListResponseData,
+    HealthResponseData,
+    SyncResponseData,
+    OfflineDownloadRequestData,
+    OfflineDownloadResponseData,
+    MoveRequestData,
+    MoveResponseData,
+    ErrorDetailSchema,
 )
 
 
@@ -188,3 +197,61 @@ class TestDriveType:
         assert DriveType.PIKPAK == "pikpak"
         assert DriveType.JIANGUOYUN == "jianguoyun"
         assert DriveType.BAIDUYUN == "baiduyun"
+
+
+class TestFileListResponseData:
+    def test_valid(self):
+        data = FileListResponseData(
+            path="/",
+            items=[
+                FileInfoSchema(name="a.txt", path="/a.txt", size=100),
+                FileInfoSchema(name="b.txt", path="/b.txt", size=200),
+            ],
+        )
+        assert data.total == 2
+
+    def test_empty_list(self):
+        data = FileListResponseData(path="/downloads")
+        assert data.items == []
+        assert data.total == 0
+
+
+class TestHealthResponseData:
+    def test_healthy_status(self):
+        h = HealthResponseData(
+            status="healthy",
+            version="1.0.0",
+            env="dev",
+            rclone_available=True,
+        )
+        assert h.status == "healthy"
+        assert h.rclone_available is True
+
+
+class TestOfflineDownloadRequestData:
+    def test_valid_request(self):
+        req = OfflineDownloadRequestData(
+            urls=["https://example.com/file1.zip", "https://example.com/file2.zip"],
+            folder="/downloads",
+        )
+        assert len(req.urls) == 2
+        assert req.folder == "/downloads"
+
+    def test_default_folder(self):
+        req = OfflineDownloadRequestData(urls=["https://example.com/file.zip"])
+        assert req.folder == "/downloads"
+
+
+class TestMoveRequestData:
+    def test_valid_move(self):
+        req = MoveRequestData(
+            source_path="/old/name.txt",
+            destination_path="/new/name.txt",
+        )
+        assert req.source_path == "/old/name.txt"
+
+
+class TestMoveResponseData:
+    def test_default_success(self):
+        resp = MoveResponseData(source_path="/a", destination_path="/b")
+        assert resp.success is True

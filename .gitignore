@@ -1,22 +1,70 @@
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# C extensions
 *.so
+
+# Distribution / packaging
 .Python
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 *.egg-info/
+.installed.cfg
 *.egg
-.venv/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Virtual environments
+.env
+.venv
+env/
 venv/
 ENV/
-env/
-.eggs/
+env.bak/
+venv.bak/
 
 # IDE
 .idea/
 *.iml
+*.ipr
+*.iws
 .vscode/
 *.swp
 *.swo
@@ -30,8 +78,12 @@ env/
 .env.*
 
 # Logs
-log/*.log
+log/
 *.log
+
+# Local config (contains secrets — NOT to be committed)
+config/config_local.yaml
+config/.env
 
 # OS
 .DS_Store
@@ -46,7 +98,6 @@ htmlcov/
 # Build
 *.spec
 *.spec.backup
-build/
 cloud-drive-*.spec
 
 # Misc

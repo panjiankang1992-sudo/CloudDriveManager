@@ -9,17 +9,19 @@ from __future__ import annotations
 import json
 import posixpath
 import re
+import shutil
 import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Callable
+from typing import Callable, List, Optional
 
-from src.core.config import Config
 from src.core.exceptions import (
     RcloneExecutionError,
     RcloneNotFoundError,
     RcloneTimeoutError,
+    FileNotFoundError,
+    InvalidPathError,
 )
 from src.core.logger import get_logger
 from src.core.schemas import FileInfoSchema
@@ -68,6 +70,10 @@ class RcloneAdapter:
         self.rclone_path = rclone_path
         self.remote_name = remote_name  # e.g. "pikpak:"
         self.timeout = timeout
+
+        # Verify rclone exists
+        if not shutil.which(self.rclone_path):
+            raise RcloneNotFoundError(f"rclone executable not found: {self.rclone_path}")
 
     def _remote(self, path: str = "") -> str:
         """Build full remote:path string."""
@@ -120,6 +126,59 @@ class RcloneAdapter:
             )
 
         return result.stdout if capture_stdout else ""
+
+    def run_rclone(
+        self,
+        args: List[str],
+        timeout: Optional[int] = None,
+    ) -> str:
+        """Run a rclone command and return stdout.
+
+        Args:
+            args: rclone command arguments (e.g. ["lsjson", "mypikpak:/"])
+            timeout: Override timeout in seconds (default: self.timeout).
+
+        Returns:
+            stdout text from rclone.
+
+        Raises:
+            RcloneNotFoundError: If rclone executable not found.
+            RcloneTimeoutError: If command times out.
+            RcloneExecutionError: If rclone exits with non-zero code.
+        """
+        cmd = [self.rclone_path] + args
+        effective_timeout = timeout if timeout is not None else self.timeout
+
+        logger.debug("Running rclone: %s (timeout=%ds)", " ".join(cmd), effective_timeout)
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=effective_timeout,
+                check=False,
+            )
+        except FileNotFoundError:
+            raise RcloneNotFoundError(
+                message=f"rclone executable not found: {self.rclone_path}",
+            )
+        except subprocess.TimeoutExpired:
+            raise RcloneTimeoutError(
+                message=f"rclone command timed out after {effective_timeout}s.",
+                detail=f"Command: {' '.join(cmd)}",
+            )
+
+        if result.returncode != 0:
+            logger.warning("rclone error: %s | %s", result.stderr, result.stdout)
+            raise RcloneExecutionError(
+                message=f"rclone command failed with code {result.returncode}.",
+                detail=result.stderr.strip() if result.stderr else None,
+            )
+
+        return result.stdout
 
     # ── File listing ──────────────────────────────────────────────────────────
 

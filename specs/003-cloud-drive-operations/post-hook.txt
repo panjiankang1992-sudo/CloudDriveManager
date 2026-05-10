@@ -1,0 +1,4 @@
+## Extension Hooks
+
+**Automatic Hook**: after_specify
+Executing: `/speckit.git.commit`

@@ -5,14 +5,16 @@ Exposes: POST /cloud/{drive_type}/list, /detail, /move, /delete
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Dict, Type
 
-from fastapi import APIRouter, Depends, Path, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import JSONResponse
 
 from src.core.exceptions import (
     CloudDriveError,
+    UnsupportedDriveTypeError,
     ValidationError,
+    CloudDriveNotFoundError,
 )
 from src.core.logger import get_logger
 from src.core.schemas import (
@@ -25,13 +27,51 @@ from src.core.schemas import (
     MoveResponseData,
     DeleteResponseData,
     OperationResult,
+    FileListResponseData,
+    SyncRequestData,
+    SyncResponseData,
+    MoveRequestData,
+    OfflineDownloadRequestData,
+    OfflineDownloadResponseData,
 )
-from src.services.base import get_drive_service
+from src.services.base import CloudDriveService, get_drive_service
+from src.services.pikpak import PikPakCloudDrive
+from src.services.jianguoyun import JianguoyunCloudDrive
+from src.services.baidu import BaiduCloudDrive
+from src.services.aliyun import AliyunCloudDrive
+from src.services.quark import QuarkCloudDrive
 from src.core.operation_logger import get_operation_logger
 
 logger = get_logger("cloud_api")
 
-SUPPORTED_DRIVES = {"pikpak", "jianguoyun", "baiduyun"}
+SUPPORTED_DRIVES = {"pikpak", "jianguoyun", "baidu", "aliyun", "quark"}
+
+# Service class registry — maps drive_type to CloudDriveService subclass
+_DRIVE_SERVICE_REGISTRY: Dict[str, Type[CloudDriveService]] = {
+    "pikpak": PikPakCloudDrive,
+    "jianguoyun": JianguoyunCloudDrive,
+    "baidu": BaiduCloudDrive,
+    "aliyun": AliyunCloudDrive,
+    "quark": QuarkCloudDrive,
+}
+
+
+def get_drive_service(
+    drive_type: str,
+    rclone_path: str,
+    remote_name: str,
+    timeout: int = 300,
+) -> CloudDriveService:
+    """Factory: create a CloudDriveService instance for the given drive type."""
+    drive_type_lower = drive_type.lower()
+    if drive_type_lower not in SUPPORTED_DRIVES:
+        raise UnsupportedDriveTypeError(
+            message=f"Unsupported cloud drive type: {drive_type}",
+            detail=f"Supported types: {', '.join(sorted(SUPPORTED_DRIVES))}",
+        )
+
+    service_class = _DRIVE_SERVICE_REGISTRY[drive_type_lower]
+    return service_class(rclone_path=rclone_path, remote_name=remote_name, timeout=timeout)
 
 
 def _error_response(code: str, message: str, detail: str | None = None) -> JSONResponse:
@@ -65,162 +105,195 @@ def _get_request(request: Request) -> Request:
     return request
 
 
-def create_cloud_router() -> APIRouter:
-    """Factory: build and return a cloud drive API router with all endpoints."""
-    router = APIRouter(prefix="/cloud", tags=["cloud"])
+def create_cloud_router(
+    drive_type: str,
+    rclone_path: str,
+    remote_name: str,
+    timeout: int = 300,
+) -> APIRouter:
+    """Create a FastAPI router for a specific cloud drive.
 
-    # ── POST /cloud/{drive_type}/list ──────────────────────────────────────
+    Args:
+        drive_type: The cloud drive type (e.g. "pikpak").
+        rclone_path: Path to rclone executable.
+        remote_name: Name of the rclone remote.
+        timeout: Default timeout in seconds.
 
-    @router.post("/{drive_type}/list", response_model=APIResponse)
+    Returns:
+        An APIRouter with all cloud operation endpoints registered.
+    """
+    service = get_drive_service(drive_type, rclone_path, remote_name, timeout)
+    router = APIRouter(prefix=f"/cloud/{drive_type}", tags=[drive_type])
+
+    # ── GET /cloud/{drive_type}/list ─────────────────────────────────────────
+
+    @router.get("/list", response_model=APIResponse[FileListResponseData])
     async def list_files(
-        body: CloudDriveListRequest,
-        drive_type: Annotated[str, Path(description="Cloud drive type")],
-        request: Annotated[Request, Depends(_get_request)],
+        path: str = Query(default="/", description="Remote path"),
+        request: Request = None,
     ):
-        """List files at the given path (FR-001).
-
-        Path defaults to root `/` if empty.
-        """
-        if drive_type.lower() not in SUPPORTED_DRIVES:
-            return _error_response(
-                "UNSUPPORTED_DRIVE_TYPE",
-                f"Unsupported drive type: {drive_type}",
-                detail=f"Supported: {sorted(SUPPORTED_DRIVES)}",
-            )
-
+        """List files at the given path (lightweight, no full metadata)."""
         try:
-            service = get_drive_service(drive_type)
-            path = body.path or "/"
-            files = service.list_files(path)
+            items = service.list_files(path)
+            data = FileListResponseData(path=path, items=items)
 
             _log_operation("list", drive_type, path, OperationResult.SUCCESS, request=request)
 
-            return APIResponse.ok(
-                data=FileListData(path=path, files=files).model_dump()
-            )
-
+            return APIResponse.ok(data=data)
         except CloudDriveError as e:
-            _log_operation("list", drive_type, body.path, OperationResult.FAILED, error_code=e.CODE, error_message=e.message, request=request)
-            return _error_response(e.CODE, e.message, e.detail)
+            _log_operation("list", drive_type, path, OperationResult.FAILED, error_code=e.CODE, error_message=e.message, request=request)
+            return JSONResponse(
+                status_code=500,
+                content=APIResponse.error(code=1, message=e.message, detail=e.detail).model_dump(),
+            )
         except Exception as e:
             logger.exception(f"Unexpected error in list_files: {e}")
-            _log_operation("list", drive_type, body.path, OperationResult.FAILED, error_message=str(e), request=request)
+            _log_operation("list", drive_type, path, OperationResult.FAILED, error_message=str(e), request=request)
             return _error_response("INTERNAL_ERROR", "An unexpected error occurred", str(e))
 
-    # ── POST /cloud/{drive_type}/detail ──────────────────────────────────
+    # ── GET /cloud/{drive_type}/detail ─────────────────────────────────────────
 
-    @router.post("/{drive_type}/detail", response_model=APIResponse)
-    async def get_detail(
-        body: CloudDriveDetailRequest,
-        drive_type: Annotated[str, Path(description="Cloud drive type")],
-        request: Annotated[Request, Depends(_get_request)],
+    @router.get("/detail", response_model=APIResponse[FileListResponseData])
+    async def detail_files(
+        path: str = Query(default="/", description="Remote path"),
+        request: Request = None,
     ):
-        """Get file/folder metadata (FR-002)."""
-        if drive_type.lower() not in SUPPORTED_DRIVES:
-            return _error_response(
-                "UNSUPPORTED_DRIVE_TYPE",
-                f"Unsupported drive type: {drive_type}",
+        """List files at the given path with full metadata (ModTime, Hash, MimeType)."""
+        try:
+            items = service.list_detail(path)
+            data = FileListResponseData(path=path, items=items)
+
+            _log_operation("detail", drive_type, path, OperationResult.SUCCESS, request=request)
+
+            return APIResponse.ok(data=data)
+        except CloudDriveError as e:
+            _log_operation("detail", drive_type, path, OperationResult.FAILED, error_code=e.CODE, error_message=e.message, request=request)
+            return JSONResponse(
+                status_code=500,
+                content=APIResponse.error(code=1, message=e.message, detail=e.detail).model_dump(),
             )
-
-        try:
-            if not body.path or not body.path.strip():
-                return _error_response("VALIDATION_ERROR", "Path cannot be empty")
-
-            service = get_drive_service(drive_type)
-            files = service.list_detail(body.path)
-
-            if not files:
-                _log_operation("detail", drive_type, body.path, OperationResult.FAILED, error_code="FILE_NOT_FOUND", error_message="File not found", request=request)
-                return _error_response("FILE_NOT_FOUND", f"File not found: {body.path}")
-
-            # list_detail returns list; find our target (exact path match)
-            target = next((f for f in files if f.path.rstrip("/") == body.path.rstrip("/") or f.name == body.path.lstrip("/")), None)
-            if target is None:
-                # Fallback: if path itself is returned as a directory
-                target = files[0] if files else None
-
-            _log_operation("detail", drive_type, body.path, OperationResult.SUCCESS, request=request)
-            if target is None:
-                return _error_response("FILE_NOT_FOUND", f"File not found: {body.path}")
-            return APIResponse.ok(data=target.model_dump())
-
-        except ValidationError as e:
-            _log_operation("detail", drive_type, body.path, OperationResult.FAILED, error_code=e.CODE, error_message=e.message, request=request)
-            return _error_response(e.CODE, e.message, e.detail)
-        except CloudDriveError as e:
-            _log_operation("detail", drive_type, body.path, OperationResult.FAILED, error_code=e.CODE, error_message=e.message, request=request)
-            return _error_response(e.CODE, e.message, e.detail)
         except Exception as e:
-            logger.exception(f"Unexpected error in get_detail: {e}")
-            _log_operation("detail", drive_type, body.path, OperationResult.FAILED, error_message=str(e), request=request)
+            logger.exception(f"Unexpected error in detail_files: {e}")
+            _log_operation("detail", drive_type, path, OperationResult.FAILED, error_message=str(e), request=request)
             return _error_response("INTERNAL_ERROR", "An unexpected error occurred", str(e))
 
-    # ── POST /cloud/{drive_type}/move ────────────────────────────────────
+    # ── GET /cloud/{drive_type}/download ───────────────────────────────────────
 
-    @router.post("/{drive_type}/move", response_model=APIResponse)
-    async def move_file(
-        body: CloudDriveMoveRequest,
-        drive_type: Annotated[str, Path(description="Cloud drive type")],
-        request: Annotated[Request, Depends(_get_request)],
+    @router.get("/download", response_model=APIResponse[MoveResponseData])
+    async def download_file(
+        path: str = Query(..., description="Remote file path"),
+        local_path: str = Query(..., description="Local destination path"),
+        request: Request = None,
     ):
-        """Move a file or folder (FR-003). Auto-creates destination parent dir."""
-        if drive_type.lower() not in SUPPORTED_DRIVES:
-            return _error_response("UNSUPPORTED_DRIVE_TYPE", f"Unsupported drive type: {drive_type}")
-
+        """Download a file from the cloud drive to a local path."""
         try:
-            if not body.src or not body.src.strip():
-                return _error_response("VALIDATION_ERROR", "Source path cannot be empty")
+            service.download(path, local_path)
+            data = MoveResponseData(source_path=path, destination_path=local_path, success=True)
 
-            service = get_drive_service(drive_type)
-            service.move(body.src, body.dst)
+            _log_operation("download", drive_type, path, OperationResult.SUCCESS, extra={"local_path": local_path}, request=request)
 
-            _log_operation("move", drive_type, body.src, OperationResult.SUCCESS, extra={"dst": body.dst}, request=request)
-            return APIResponse.ok(data=MoveResponseData(src=body.src, dst=body.dst, moved=True).model_dump())
-
-        except ValidationError as e:
-            _log_operation("move", drive_type, body.src, OperationResult.FAILED, error_code=e.CODE, error_message=e.message, request=request)
-            return _error_response(e.CODE, e.message, e.detail)
+            return APIResponse.ok(data=data)
         except CloudDriveError as e:
-            _log_operation("move", drive_type, body.src, OperationResult.FAILED, error_code=e.CODE, error_message=e.message, request=request)
-            return _error_response(e.CODE, e.message, e.detail)
+            _log_operation("download", drive_type, path, OperationResult.FAILED, error_code=e.CODE, error_message=e.message, request=request)
+            return JSONResponse(
+                status_code=500,
+                content=APIResponse.error(code=1, message=e.message, detail=e.detail).model_dump(),
+            )
         except Exception as e:
-            logger.exception(f"Unexpected error in move_file: {e}")
-            _log_operation("move", drive_type, body.src, OperationResult.FAILED, error_message=str(e), request=request)
+            logger.exception(f"Unexpected error in download_file: {e}")
+            _log_operation("download", drive_type, path, OperationResult.FAILED, error_message=str(e), request=request)
             return _error_response("INTERNAL_ERROR", "An unexpected error occurred", str(e))
 
-    # ── POST /cloud/{drive_type}/delete ──────────────────────────────────
+    # ── DELETE /cloud/{drive_type}/delete ─────────────────────────────────────
 
-    @router.post("/{drive_type}/delete", response_model=APIResponse)
+    @router.delete("/delete", response_model=APIResponse[MoveResponseData])
     async def delete_file(
-        body: CloudDriveDeleteRequest,
-        drive_type: Annotated[str, Path(description="Cloud drive type")],
-        request: Annotated[Request, Depends(_get_request)],
+        path: str = Query(..., description="Remote path to delete"),
+        request: Request = None,
     ):
-        """Delete a file or folder (FR-004). Cannot delete root `/`."""
-        if drive_type.lower() not in SUPPORTED_DRIVES:
-            return _error_response("UNSUPPORTED_DRIVE_TYPE", f"Unsupported drive type: {drive_type}")
-
+        """Delete a file or directory from the cloud drive."""
         try:
-            if not body.path or not body.path.strip():
-                return _error_response("VALIDATION_ERROR", "Path cannot be empty")
-            if body.path == "/":
-                return _error_response("VALIDATION_ERROR", "Cannot delete root directory")
+            service.delete(path)
+            data = MoveResponseData(source_path=path, destination_path="", success=True)
 
-            service = get_drive_service(drive_type)
-            service.delete(body.path)
+            _log_operation("delete", drive_type, path, OperationResult.SUCCESS, request=request)
 
-            _log_operation("delete", drive_type, body.path, OperationResult.SUCCESS, request=request)
-            return APIResponse.ok(data=DeleteResponseData(deleted=True, path=body.path).model_dump())
-
-        except ValidationError as e:
-            _log_operation("delete", drive_type, body.path, OperationResult.FAILED, error_code=e.CODE, error_message=e.message, request=request)
-            return _error_response(e.CODE, e.message, e.detail)
+            return APIResponse.ok(data=data)
         except CloudDriveError as e:
-            _log_operation("delete", drive_type, body.path, OperationResult.FAILED, error_code=e.CODE, error_message=e.message, request=request)
-            return _error_response(e.CODE, e.message, e.detail)
+            _log_operation("delete", drive_type, path, OperationResult.FAILED, error_code=e.CODE, error_message=e.message, request=request)
+            return JSONResponse(
+                status_code=500,
+                content=APIResponse.error(code=1, message=e.message, detail=e.detail).model_dump(),
+            )
         except Exception as e:
             logger.exception(f"Unexpected error in delete_file: {e}")
-            _log_operation("delete", drive_type, body.path, OperationResult.FAILED, error_message=str(e), request=request)
+            _log_operation("delete", drive_type, path, OperationResult.FAILED, error_message=str(e), request=request)
             return _error_response("INTERNAL_ERROR", "An unexpected error occurred", str(e))
+
+    # ── POST /cloud/{drive_type}/move ─────────────────────────────────────────
+
+    @router.post("/move", response_model=APIResponse[MoveResponseData])
+    async def move_file(
+        body: MoveRequestData,
+        request: Request = None,
+    ):
+        """Move/rename a file or directory within the cloud drive."""
+        try:
+            service.move(body.source_path, body.destination_path)
+            data = MoveResponseData(
+                source_path=body.source_path,
+                destination_path=body.destination_path,
+                success=True,
+            )
+
+            _log_operation("move", drive_type, body.source_path, OperationResult.SUCCESS, extra={"dst": body.destination_path}, request=request)
+
+            return APIResponse.ok(data=data)
+        except CloudDriveError as e:
+            _log_operation("move", drive_type, body.source_path, OperationResult.FAILED, error_code=e.CODE, error_message=e.message, request=request)
+            return JSONResponse(
+                status_code=500,
+                content=APIResponse.error(code=1, message=e.message, detail=e.detail).model_dump(),
+            )
+        except Exception as e:
+            logger.exception(f"Unexpected error in move_file: {e}")
+            _log_operation("move", drive_type, body.source_path, OperationResult.FAILED, error_message=str(e), request=request)
+            return _error_response("INTERNAL_ERROR", "An unexpected error occurred", str(e))
+
+    # ── POST /cloud/{drive_type}/offline-download (PikPak only) ───────────────
+
+    @router.post("/offline-download", response_model=APIResponse[OfflineDownloadResponseData])
+    async def offline_download(
+        body: OfflineDownloadRequestData,
+        request: Request = None,
+    ):
+        """Add an offline download task (PikPak only)."""
+        try:
+            task_id = service.cloud_download_add(body.urls, body.folder)
+            data = OfflineDownloadResponseData(
+                task_id=task_id,
+                status="pending",
+                urls_count=len(body.urls),
+            )
+
+            _log_operation("offline-download", drive_type, body.folder, OperationResult.SUCCESS, extra={"urls_count": len(body.urls)}, request=request)
+
+            return APIResponse.ok(data=data)
+        except NotImplementedError:
+            _log_operation("offline-download", drive_type, body.folder, OperationResult.FAILED, error_code="NOT_SUPPORTED", error_message="Offline download not supported for this cloud drive type.", request=request)
+            return JSONResponse(
+                status_code=501,
+                content=APIResponse.error(
+                    code=1,
+                    message="Offline download not supported for this cloud drive type.",
+                    detail=None,
+                ).model_dump(),
+            )
+        except CloudDriveError as e:
+            _log_operation("offline-download", drive_type, body.folder, OperationResult.FAILED, error_code=e.CODE, error_message=e.message, request=request)
+            return JSONResponse(
+                status_code=500,
+                content=APIResponse.error(code=1, message=e.message, detail=e.detail).model_dump(),
+            )
 
     return router

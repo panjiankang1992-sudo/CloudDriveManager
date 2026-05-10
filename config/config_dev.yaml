@@ -1,0 +1,54 @@
+app:
+  name: cloud_drive_manager
+  version: 1.0.0
+  mode: dev
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+
+log:
+  level: DEBUG
+  max_bytes: 10485760
+  backup_count: 10
+  retention_days: 7
+
+encryption:
+  salt: "OIfneBqZYsoQRb418qsamQPGPAKH9LioHfuJwbmmsn8="
+
+database:
+  host: "192.168.1.9"
+  port: 3306
+  user: "root"
+  password: "gAAAAABp9BR9NYoPlKAOR_BeOFF0ScX3Tnd-oKADUkA2LfyCBTUCTXIy5spStwabcjE7rekIdbYQy-ncBX5vsvlknkv5MyYKfw=="
+  database: "cloud_drive_manager"
+
+pikpak:
+  remote_name: mypikpak
+  rclone_path: "rclone"
+  max_retries: 3
+  timeout: 300
+
+jianguoyun:
+  remote_name: myjianguoyun
+  rclone_path: "rclone"
+  max_retries: 3
+  timeout: 300
+
+baidu:
+  remote_name: mybaidu
+  rclone_path: "rclone"
+  max_retries: 3
+  timeout: 300
+
+aliyun:
+  remote_name: myaliyun
+  rclone_path: "rclone"
+  max_retries: 3
+  timeout: 300
+
+quark:
+  remote_name: myquark
+  rclone_path: "rclone"
+  max_retries: 3
+  timeout: 300

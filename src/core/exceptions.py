@@ -33,29 +33,64 @@ class CloudDriveError(Exception):
 
 
 class ConfigError(CloudDriveError):
+    """Base class for configuration errors."""
     CODE = "CONFIG_ERROR"
     MESSAGE = "Configuration error."
 
 
 class ConfigKeyNotFoundError(ConfigError):
+    """Raised when a required config key is missing."""
     CODE = "CONFIG_KEY_NOT_FOUND"
     MESSAGE = "A required configuration key was not found."
 
 
 class ConfigFileNotFoundError(ConfigError):
+    """Raised when the config file itself cannot be found."""
     CODE = "CONFIG_FILE_NOT_FOUND"
     MESSAGE = "Configuration file not found."
 
 
 class ConfigParseError(ConfigError):
+    """Raised when the config file is malformed YAML."""
     CODE = "CONFIG_PARSE_ERROR"
     MESSAGE = "Configuration file is malformed."
+
+
+class ConfigValueError(ConfigError):
+    """Raised when a config value is invalid (wrong type, out of range, etc.)."""
+    CODE = "CONFIG_VALUE_ERROR"
+    MESSAGE = "Configuration value is invalid."
+
+
+# ── Encryption errors ───────────────────────────────────────────────────────────
+
+
+class EncryptionError(CloudDriveError):
+    """Base class for encryption / decryption errors."""
+    CODE = "ENCRYPTION_ERROR"
+    MESSAGE = "Encryption operation failed."
+
+
+class EncryptionKeyNotSetError(EncryptionError):
+    CODE = "ENCRYPTION_KEY_NOT_SET"
+    MESSAGE = "Encryption key is not configured."
+
+
+class EncryptionDecryptError(EncryptionError):
+    CODE = "ENCRYPTION_DECRYPT_ERROR"
+    MESSAGE = "Failed to decrypt the provided ciphertext."
+
+
+class EncryptionEncryptError(EncryptionError):
+    CODE = "ENCRYPTION_ENCRYPT_ERROR"
+    MESSAGE = "Failed to encrypt the provided plaintext."
 
 
 # ── Cloud drive errors ─────────────────────────────────────────────────────────
 
 
 class CloudDriveError2(CloudDriveError):
+    """Base class for cloud drive operation errors (rclone, network, auth, etc.)."""
     CODE = "CLOUD_DRIVE_ERROR"
     MESSAGE = "A cloud drive operation failed."
 
@@ -109,6 +144,7 @@ class InvalidPathError(CloudDriveError2):
 
 
 class APIError(CloudDriveError):
+    """Base class for API-layer errors (request validation, etc.)."""
     CODE = "API_ERROR"
     MESSAGE = "API request error."
 
@@ -127,6 +163,7 @@ class UnsupportedDriveTypeError(APIError):
 
 
 class ServiceError(CloudDriveError):
+    """Base class for service-layer errors (sync, offline-download, etc.)."""
     CODE = "SERVICE_ERROR"
     MESSAGE = "A service operation failed."
 
@@ -158,3 +195,13 @@ class CloudDriveFileInUseError(CloudDriveError2):
     """Raised when attempting to delete or move a file that is currently being synced."""
     CODE = "FILE_IN_USE"
     MESSAGE = "The file is currently being used by another operation."
+
+
+class OfflineDownloadError(ServiceError):
+    CODE = "OFFLINE_DOWNLOAD_ERROR"
+    MESSAGE = "Offline download task creation failed."
+
+
+class OfflineDownloadTimeoutError(OfflineDownloadError):
+    CODE = "OFFLINE_DOWNLOAD_TIMEOUT"
+    MESSAGE = "Offline download timed out."

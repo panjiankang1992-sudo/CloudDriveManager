@@ -1,33 +1,54 @@
-# ── CloudDriveManager — Production Configuration ─────────────────────────────
-# WARNING: Do NOT commit real credentials to this file.
-# Use environment variables for all sensitive values:
-#   CLOUD_DB_HOST, CLOUD_DB_PORT, CLOUD_DB_USER, CLOUD_DB_PASSWORD, CLOUD_DB_NAME
-#   CLOUD_ENCRYPTION_SALT
-#
-# This file contains only non-sensitive production defaults.
-
-database:
-  host: "localhost"       # Override via CLOUD_DB_HOST
-  port: 3306
-  username: "root"        # Override via CLOUD_DB_USER
-  password: ""            # REQUIRED: Set via CLOUD_DB_PASSWORD env var
-  name: "cloud_drive_manager"
-
 app:
-  host: "127.0.0.1"
+  name: cloud_drive_manager
+  version: 1.0.0
+  mode: prod
+
+server:
+  host: "0.0.0.0"
   port: 29312
-  debug: false
+
+log:
+  level: INFO
+  max_bytes: 10485760
+  backup_count: 10
+  retention_days: 7
 
 encryption:
-  salt: ""                # REQUIRED: Set via CLOUD_ENCRYPTION_SALT env var
+  salt: "OIfneBqZYsoQRb418qsamQPGPAKH9LioHfuJwbmmsn8="
 
-logging:
-  level: "WARNING"
-  file: "log/app.log"
-  format: "json"
+database:
+  host: "192.168.1.9"
+  port: 3306
+  user: "root"
+  password: "gAAAAABp9BR9NYoPlKAOR_BeOFF0ScX3Tnd-oKADUkA2LfyCBTUCTXIy5spStwabcjE7rekIdbYQy-ncBX5vsvlknkv5MyYKfw=="
+  database: "cloud_drive_manager"
 
-cloud_drives:
+pikpak:
+  remote_name: mypikpak
   rclone_path: "rclone"
-  timeout: 300
-  max_concurrent_syncs: 5
-  max_retry: 10
+  max_retries: 5
+  timeout: 600
+
+jianguoyun:
+  remote_name: myjianguoyun
+  rclone_path: "rclone"
+  max_retries: 5
+  timeout: 600
+
+baidu:
+  remote_name: mybaidu
+  rclone_path: "rclone"
+  max_retries: 5
+  timeout: 600
+
+aliyun:
+  remote_name: myaliyun
+  rclone_path: "rclone"
+  max_retries: 5
+  timeout: 600
+
+quark:
+  remote_name: myquark
+  rclone_path: "rclone"
+  max_retries: 5
+  timeout: 600

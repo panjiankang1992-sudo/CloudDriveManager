@@ -106,6 +106,7 @@ class CloudDriveService(ABC):
             ValidationError: src is empty
             FileNotFoundError: src does not exist
         """
+        ...
 
     @abstractmethod
     def download(self, remote_path: str, local_path: str) -> bool:

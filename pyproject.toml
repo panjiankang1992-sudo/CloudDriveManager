@@ -1,7 +1,7 @@
 [project]
 name = "cloud-drive-manager"
-version = "0.1.0"
-description = "Cloud drive unified file operations API with MCP interface"
+version = "1.0.0"
+description = "Cloud Drive Manager — HTTP REST service for multi-cloud-drive operations via rclone"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.109.0",
@@ -12,7 +12,7 @@ dependencies = [
     "httpx>=0.27.0",
     "python-multipart>=0.0.9",
     "pyyaml>=6.0",
-    "fastmcp>=0.40.0",
+    "fastmcp>=3.0.0",
 ]
 
 [project.optional-dependencies]
@@ -29,7 +29,14 @@ build-backend = "setuptools.build_meta"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v"
 
 [tool.ruff]
 line-length = 120
 target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N"]
+ignore = ["E501"]

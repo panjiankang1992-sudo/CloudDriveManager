@@ -17,6 +17,7 @@ from src.core.exceptions import (
     InvalidJobStateError,
     OperationQueueFullError,
     SyncError,
+    CloudDriveError,
 )
 from src.core.logger import get_logger
 from src.core.schemas import (

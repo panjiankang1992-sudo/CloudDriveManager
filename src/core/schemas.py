@@ -4,9 +4,36 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, Generic, List, Optional, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+# ── Generic envelope ───────────────────────────────────────────────────────────
+
+T = TypeVar("T")
+
+
+class APIResponse(BaseModel, Generic[T]):
+    """Unified API response wrapper.
+
+    All API endpoints return this envelope:
+      {"code": 0, "message": "success", "data": <payload>}
+
+    code: 0 = success, non-zero = error (maps to CloudDriveError.CODE)
+    """
+
+    code: int = 0
+    message: str = "success"
+    data: Optional[T] = None
+
+    @classmethod
+    def ok(cls, data: T = None, message: str = "success") -> "APIResponse[T]":
+        return cls(code=0, message=message, data=data)
+
+    @classmethod
+    def error(cls, code: int, message: str, detail: Optional[str] = None) -> "APIResponse[None]":
+        return cls(code=code, message=message, data=None)
 
 
 # ── Enums ────────────────────────────────────────────────────────────────────
@@ -47,15 +74,15 @@ class CloudDownloadStatus(str, Enum):
 # ── FileInfo ──────────────────────────────────────────────────────────────────
 
 class FileInfoSchema(BaseModel):
-    """Cloud drive file/folder metadata."""
+    """Schema for a single file or directory entry."""
 
-    name: str = Field(..., description="File name (without path)")
-    path: str = Field(..., description="Full absolute path")
-    size: int = Field(..., ge=0, description="Size in bytes (0 for directory)")
-    is_dir: bool = Field(..., description="True if directory")
-    modified: datetime = Field(..., description="Last modified time (ISO 8601)")
-    mime_type: str | None = Field(None, description="MIME type (null for directory)")
-    hash: str | None = Field(None, description="File hash (null for directory)")
+    name: str = Field(..., description="File or directory name")
+    path: str = Field(..., description="Full path on the cloud drive")
+    size: int = Field(default=0, description="Size in bytes (0 for directories)")
+    is_dir: bool = Field(default=False, description="True if this is a directory")
+    modified: Optional[str] = Field(None, description="ISO 8601 modification time")
+    hash: Optional[str] = Field(None, description="MD5 hash if available")
+    mime_type: Optional[str] = Field(None, description="MIME type if known")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -65,20 +92,31 @@ class FileListData(BaseModel):
     files: list[FileInfoSchema]
 
 
-# ── API Request/Response ───────────────────────────────────────────────────────
+class FileListResponseData(BaseModel):
+    """Response payload for /cloud/{drive_type}/list/detail."""
 
-class APIResponse(BaseModel):
-    code: int | str = Field(0, description="0 = success, error code otherwise (int or str)")
-    message: str = Field("success")
-    data: Any = Field(None)
+    path: str
+    items: List[FileInfoSchema] = Field(default_factory=list)
+    total: int = Field(default=0, description="Total number of items")
 
-    @classmethod
-    def ok(cls, data: Any = None, message: str = "success") -> APIResponse:
-        return cls(code=0, message=message, data=data)
+    @model_validator(mode="after")
+    def compute_total(self) -> "FileListResponseData":
+        self.total = len(self.items)
+        return self
 
-    @classmethod
-    def error(cls, code: str = "UNKNOWN", message: str = "error", detail: str | None = None) -> APIResponse:
-        return cls(code=code, message=message, data={"detail": detail} if detail else None)
+
+# ── Health ─────────────────────────────────────────────────────────────────────
+
+
+class HealthResponseData(BaseModel):
+    status: str = Field(..., description="Overall service status")
+    version: str = Field(..., description="Application version")
+    env: str = Field(..., description="Active environment (dev/prod)")
+    rclone_available: bool = Field(default=False, description="rclone executable found")
+
+
+class HealthCheckResponse(APIResponse[HealthResponseData]):
+    pass
 
 
 # ── Cloud Drive Requests ─────────────────────────────────────────────────────
@@ -101,9 +139,11 @@ class CloudDriveDeleteRequest(BaseModel):
 
 
 class MoveResponseData(BaseModel):
-    src: str
-    dst: str
-    moved: bool
+    """Response payload for /cloud/{drive_type}/move."""
+
+    source_path: str
+    destination_path: str
+    success: bool = True
 
 
 class DeleteResponseData(BaseModel):
@@ -150,18 +190,27 @@ class SyncResponseData(BaseModel):
     created_at: datetime
 
 
+# ── Offline download (PikPak) ───────────────────────────────────────────────────
+
+
+class OfflineDownloadRequestData(BaseModel):
+    """Request payload for /cloud/pikpak/offline-download."""
+
+    urls: List[str] = Field(..., description="List of URLs to download")
+    folder: str = Field(default="/downloads", description="Destination folder on PikPak")
+
+
+class OfflineDownloadResponseData(BaseModel):
+    task_id: str = Field(..., description="Offline download task ID")
+    status: str = Field(..., description="Current task status")
+    urls_count: int = Field(..., description="Number of URLs in this task")
+
+
 # ── Offline Download ──────────────────────────────────────────────────────────
 
 class OfflineDownloadRequest(BaseModel):
     urls: list[str] = Field(..., description="List of HTTP or magnet URLs")
     folder: str = Field("/My Pack", description="Destination folder on PikPak")
-
-
-class OfflineDownloadResponseData(BaseModel):
-    task_id: str
-    urls_count: int
-    destination_folder: str
-    created_at: datetime
 
 
 class OfflineDownloadStatusData(BaseModel):
@@ -219,3 +268,14 @@ class CloudDownloadJobSchema(BaseModel):
     finished_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ── Error detail ───────────────────────────────────────────────────────────────
+
+
+class ErrorDetailSchema(BaseModel):
+    """Structured error detail included in API error responses."""
+
+    code: str = Field(..., description="Plain string error code")
+    message: str = Field(..., description="Human-readable error message")
+    detail: Optional[str] = Field(None, description="Additional context")
