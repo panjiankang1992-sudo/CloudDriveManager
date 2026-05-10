@@ -237,7 +237,11 @@ class SyncJobManager:
             raise
 
     def _persist_job(self, job: _SyncJob, insert: bool = True) -> None:
-        """Write job state to MySQL unified jobs table."""
+        """Write job state to MySQL unified jobs table.
+
+        Database failures are logged but do NOT crash the sync operation —
+        the in-memory state is authoritative; DB is a best-effort mirror.
+        """
         import json
         status_map = {
             _JobState.PENDING: "pending",
@@ -253,26 +257,29 @@ class SyncJobManager:
         }
 
         source_json = json.dumps({"source_path": job.source_path})
-        if insert:
-            self._db.job_insert(
-                job_id=job.job_id,
-                job_type="sync",
-                drive_type=job.drive_type,
-                source=source_json,
-                destination=job.local_path,
-                status=status_map[job.status],
-                phase=phase_map.get(job.phase, "downloading"),
-            )
-        else:
-            self._db.job_update(
-                job_id=job.job_id,
-                status=status_map[job.status],
-                phase=phase_map.get(job.phase, "downloading"),
-                progress_bytes=job.progress_bytes,
-                total_bytes=job.total_bytes,
-                error_message=job.error_message,
-                finished_at=job.finished_at,
-            )
+        try:
+            if insert:
+                self._db.job_insert(
+                    job_id=job.job_id,
+                    job_type="sync",
+                    drive_type=job.drive_type,
+                    source=source_json,
+                    destination=job.local_path,
+                    status=status_map[job.status],
+                    phase=phase_map.get(job.phase, "downloading"),
+                )
+            else:
+                self._db.job_update(
+                    job_id=job.job_id,
+                    status=status_map[job.status],
+                    phase=phase_map.get(job.phase, "downloading"),
+                    progress_bytes=job.progress_bytes,
+                    total_bytes=job.total_bytes,
+                    error_message=job.error_message,
+                    finished_at=job.finished_at,
+                )
+        except Exception as e:
+            logger.warning(f"Failed to persist job {job.job_id} to DB: {e}")
 
 
 # ── Module-level singleton ────────────────────────────────────────────────────

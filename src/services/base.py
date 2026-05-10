@@ -217,79 +217,21 @@ class _RcloneCloudDrive(CloudDriveService):
 class JianguoyunCloudDrive(_RcloneCloudDrive):
     """JianGuoYun (坚果云) cloud drive via rclone."""
 
-    def cloud_download_add(self, urls: List[str], folder: str = "/My Pack") -> str:
-        raise NotImplementedError("JianGuoYun does not support offline download.")
-
 
 class BaiduCloudDrive(_RcloneCloudDrive):
-    """Baidu cloud drive via rclone."""
-
-    def cloud_download_add(self, urls: List[str], folder: str = "/My Pack") -> str:
-        raise NotImplementedError("Baidu does not support offline download.")
+    """Baidu cloud drive via rclone (via Alist WebDAV)."""
 
 
 class AliyunCloudDrive(_RcloneCloudDrive):
-    """Aliyun cloud drive via rclone."""
-
-    def cloud_download_add(self, urls: List[str], folder: str = "/My Pack") -> str:
-        raise NotImplementedError("Aliyun does not support offline download.")
+    """Aliyun cloud drive via rclone (WebDAV)."""
 
 
 class QuarkCloudDrive(_RcloneCloudDrive):
-    """Quark cloud drive via rclone."""
-
-    def cloud_download_add(self, urls: List[str], folder: str = "/My Pack") -> str:
-        raise NotImplementedError("Quark does not support offline download.")
+    """Quark cloud drive via rclone (WebDAV)."""
 
 
-class PikPakCloudDrive(CloudDriveService):
-    """PikPak cloud drive — all operations via rclone."""
-
-    def __init__(
-        self,
-        adapter: RcloneAdapter,
-    ):
-        super().__init__(adapter)
-
-    def list_files(self, path: str = "/") -> List[FileInfoSchema]:
-        path = path or "/"
-        return self._adapter.list_remote(path)
-
-    def list_detail(self, path: str = "/") -> List[FileInfoSchema]:
-        if not path or not path.strip():
-            raise ValidationError(message="Directory path cannot be empty")
-        return self._adapter.list_detail(path)
-
-    def delete(self, path: str) -> bool:
-        if not path or not path.strip():
-            raise ValidationError(message="Path cannot be empty")
-        if path == "/":
-            raise ValidationError(message="Cannot delete root directory")
-        self._check_file_not_in_use(path)
-        self._adapter.delete(path)
-        return True
-
-    def move(self, src: str, dst: str) -> bool:
-        if not src or not src.strip():
-            raise ValidationError(message="Source path cannot be empty")
-        if not dst or not dst.strip():
-            raise ValidationError(message="Destination path cannot be empty")
-        self._check_file_not_in_use(src)
-        return self._adapter.move_with_mkdir(src, dst)
-
-    def download(self, remote_path: str, local_path: str) -> bool:
-        return self._adapter.copy(remote_path, local_path)
-
-    def copy_to_local(
-        self,
-        remote_path: str,
-        local_path: str,
-        cancel_event: threading.Event | None = None,
-        progress_callback: Callable[[int, int, int], None] | None = None,
-    ) -> bool:
-        return self._adapter.copy_with_progress(
-            remote_path, local_path, cancel_event, progress_callback
-        )
+class PikPakCloudDrive(_RcloneCloudDrive):
+    """PikPak cloud drive — all operations via rclone, plus offline download."""
 
     def cloud_download_add(self, urls: List[str], folder: str = "/My Pack") -> str:
         from src.services.pikpak import cloud_download_add as _add
@@ -302,6 +244,8 @@ _DRIVE_SERVICE_MAP = {
     "pikpak": PikPakCloudDrive,
     "jianguoyun": JianguoyunCloudDrive,
     "baiduyun": BaiduCloudDrive,
+    "aliyun": AliyunCloudDrive,
+    "quark": QuarkCloudDrive,
 }
 
 
@@ -309,15 +253,19 @@ def get_drive_service(
     drive_type: str,
     rclone_path: str | None = None,
     remote_name: str | None = None,
-    timeout: int = 300,
+    timeout: int | None = None,
 ) -> CloudDriveService:
-    """Factory: create a CloudDriveService instance for the given drive type.
+    """Factory: create a CloudDriveService for the given drive type.
+
+    Only `drive_type` is required. All other parameters fall back to
+    environment variables or YAML config automatically — callers never
+    need to pass credentials or infrastructure details.
 
     Args:
-        drive_type: One of pikpak, jianguoyun, baidu, aliyun, quark
-        rclone_path: Path to rclone binary (default from config)
-        remote_name: rclone remote name (e.g. "pikpak:") (default from config)
-        timeout: Command timeout in seconds
+        drive_type: One of pikpak, jianguoyun, baiduyun
+        rclone_path: Path to rclone binary (default: from config/env)
+        remote_name: rclone remote name (default: "{drive_type}:")
+        timeout: Command timeout in seconds (default: from config/env)
 
     Returns:
         Configured CloudDriveService subclass instance
@@ -338,6 +286,6 @@ def get_drive_service(
     adapter = RcloneAdapter(
         rclone_path=rclone_path or cfg.rclone_path,
         remote_name=remote_name or f"{drive_type}:",
-        timeout=timeout or cfg.cloud_timeout,
+        timeout=timeout if timeout is not None else cfg.cloud_timeout,
     )
     return cls(adapter)

@@ -1,0 +1,36 @@
+# ── CloudDriveManager — Development Configuration ────────────────────────────
+# Every value here can be overridden by environment variables:
+#   CLOUD_DB_HOST, CLOUD_DB_PORT, CLOUD_DB_USER, CLOUD_DB_PASSWORD, CLOUD_DB_NAME
+#   CLOUD_APP_HOST, CLOUD_APP_PORT, CLOUD_MCP_PORT
+#   CLOUD_ENCRYPTION_SALT
+#   CLOUD_RCLONE_PATH
+#   CLOUD_ENV, CLOUD_CONFIG_FILE
+#
+# If this file is missing, the app starts with all defaults (no YAML required).
+
+database:
+  host: "localhost"
+  port: 3306
+  username: "root"
+  password: ""
+  name: "cloud_drive_manager"
+
+app:
+  host: "127.0.0.1"
+  port: 29312
+  debug: true
+
+# Auto-generated per session in dev; set for persistence across restarts
+encryption:
+  salt: ""
+
+logging:
+  level: "INFO"
+  file: null
+  format: "text"
+
+cloud_drives:
+  rclone_path: "rclone"
+  timeout: 300
+  max_concurrent_syncs: 5
+  max_retry: 10
