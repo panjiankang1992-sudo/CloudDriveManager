@@ -263,4 +263,14 @@ def run(port: int | None = None) -> None:
 
 
 if __name__ == "__main__":
-    run()
+    import argparse
+    parser = argparse.ArgumentParser(description="CloudDriveManager MCP Server")
+    parser.add_argument("--port", type=int, default=None, help="Port to listen on (default: from config)")
+    parser.add_argument("--host", type=str, default=None, help="Host to bind to (default: from config)")
+    args = parser.parse_args()
+
+    cfg = _cfg()
+    listen_port = args.port or cfg.mcp_port
+    listen_host = args.host or cfg.app_host
+    logger.info(f"Starting MCP server on {listen_host}:{listen_port}")
+    mcp.run(transport="http", host=listen_host, port=listen_port)
