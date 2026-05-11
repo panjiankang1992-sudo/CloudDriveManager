@@ -96,9 +96,7 @@ htmlcov/
 *.cover
 
 # Build
-*.spec
 *.spec.backup
-cloud-drive-*.spec
 
 # Misc
 *.tmp
