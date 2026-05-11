@@ -1,90 +1,110 @@
-"""Unit tests for src/config/config.py"""
+"""Unit tests for src/core/config.py"""
 
 import pytest
-import tempfile
 import os
-from pathlib import Path
 
-from src.config.config import Config, _AppConfig
-from src.core.exceptions import (
-    ConfigFileNotFoundError,
-    ConfigParseError,
-    ConfigValueError,
-    ConfigKeyNotFoundError,
-)
+from src.core.config import Config
 
 
-class TestAppConfig:
-    def test_sections_loaded_from_data(self, mock_config_data):
-        cfg = _AppConfig(mock_config_data)
-        assert cfg.app["name"] == "test_app"
-        assert cfg.server["port"] == 8000
-        assert cfg.log["level"] == "DEBUG"
-
-    def test_cloud_drive_sections(self, mock_config_data):
-        cfg = _AppConfig(mock_config_data)
-        assert cfg.pikpak["remote_name"] == "mypikpak"
-        assert cfg.jianguoyun["remote_name"] == "myjianguoyun"
-        assert cfg.baidu["remote_name"] == "mybaidu"
-        assert cfg.aliyun["remote_name"] == "myaliyun"
-        assert cfg.quark["remote_name"] == "myquark"
-
-    def test_get_raw_nested_key(self, mock_config_data):
-        cfg = _AppConfig(mock_config_data)
-        assert cfg.get_raw("app", "version") == "1.0.0"
-        assert cfg.get_raw("server", "port") == 8000
-
-    def test_get_raw_missing_key_raises(self, mock_config_data):
-        cfg = _AppConfig(mock_config_data)
-        with pytest.raises(ConfigKeyNotFoundError) as exc_info:
-            cfg.get_raw("app", "nonexistent")
-        assert exc_info.value.CODE == "CONFIG_KEY_NOT_FOUND"
-
-    def test_missing_sections_return_empty_dict(self, mock_config_data):
-        data = {"app": {"name": "test"}}
-        cfg = _AppConfig(data)
-        assert cfg.server == {}
-        assert cfg.log == {}
-        assert cfg.encryption == {}
-
-
-class TestConfigLoad:
+class TestConfigGet:
     def setup_method(self):
         Config._instance = None
-        Config._env = None
 
     def teardown_method(self):
         Config._instance = None
-        Config._env = None
 
-    def test_load_dev_file_success(self):
-        # The actual config_dev.yaml exists in the repo
-        cfg = Config.load("dev")
-        assert cfg.app["name"] == "cloud_drive_manager"
-        assert Config.env() == "dev"
+    def test_get_returns_singleton(self):
+        cfg1 = Config.get()
+        cfg2 = Config.get()
+        assert cfg1 is cfg2
 
-    def test_load_prod_file_success(self):
-        cfg = Config.load("prod")
-        assert cfg.app["name"] == "cloud_drive_manager"
-        assert Config.env() == "prod"
+    def test_env_defaults_to_dev(self):
+        cfg = Config.get()
+        assert cfg.env == "dev"
 
-    def test_load_invalid_env_raises(self):
-        with pytest.raises(ConfigValueError) as exc_info:
-            Config.load("staging")
-        assert exc_info.value.CODE == "CONFIG_VALUE_ERROR"
+    def test_database_defaults(self):
+        cfg = Config.get()
+        assert cfg.database_host == "localhost"
+        assert cfg.database_port == 3306
+        assert cfg.database_username == "root"
+        assert cfg.database_name == "cloud_drive_manager"
 
-    def test_load_nonexistent_file_raises(self):
-        # Patch the path resolution temporarily
-        original = Path(__file__).parent.parent / "config" / "config_dev.yaml"
-        # This test depends on actual file existence
-        cfg = Config.load("dev")
-        assert cfg is not None
+    def test_app_defaults(self):
+        cfg = Config.get()
+        assert cfg.app_host == "127.0.0.1"
+        assert cfg.app_port == 29312
 
-    def test_get_without_load_raises(self):
+    def test_rclone_path_defaults(self):
+        cfg = Config.get()
+        assert cfg.rclone_path == "rclone"
+
+    def test_cloud_timeout_defaults(self):
+        cfg = Config.get()
+        assert cfg.cloud_timeout == 300
+
+    def test_max_concurrent_syncs_defaults(self):
+        cfg = Config.get()
+        assert cfg.max_concurrent_syncs == 5
+
+    def test_max_retry_defaults(self):
+        cfg = Config.get()
+        assert cfg.max_retry == 10
+
+    def test_encryption_salt_empty_by_default(self):
+        cfg = Config.get()
+        assert cfg.encryption_salt == ""
+
+    def test_fernet_key_generated(self):
+        cfg = Config.get()
+        key = cfg.fernet_key
+        assert key is not None
+        assert len(key) > 0
+
+    def test_encrypt_decrypt_password(self):
+        cfg = Config.get()
+        original = "my_secret_password"
+        encrypted = cfg.encrypt_password(original)
+        decrypted = cfg.decrypt_password(encrypted)
+        assert decrypted == original
+        assert encrypted != original
+
+    def test_get_value_with_dot_notation(self):
+        cfg = Config.get()
+        # These use defaults since no YAML is loaded in test
+        host = cfg.get_value("database.host")
+        assert host is not None
+
+    def test_get_value_returns_default_for_missing(self):
+        cfg = Config.get()
+        value = cfg.get_value("nonexistent.key", "default_value")
+        assert value == "default_value"
+
+
+class TestConfigEnvOverride:
+    def setup_method(self):
         Config._instance = None
-        with pytest.raises(ConfigKeyNotFoundError) as exc_info:
-            Config.get()
-        assert "not loaded" in exc_info.value.message.lower()
 
-    def test_env_defaults_to_dev_when_not_set(self):
-        assert Config.env() == "dev"
+    def teardown_method(self):
+        Config._instance = None
+        # Clean up env vars
+        for key in ["CLOUD_DB_HOST", "CLOUD_APP_PORT", "CLOUD_RCLONE_PATH"]:
+            if key in os.environ:
+                del os.environ[key]
+
+    def test_env_var_overrides_yaml(self):
+        os.environ["CLOUD_DB_HOST"] = "testhost"
+        Config._instance = None
+        cfg = Config.get()
+        assert cfg.database_host == "testhost"
+
+    def test_env_var_overrides_defaults(self):
+        os.environ["CLOUD_APP_PORT"] = "9999"
+        Config._instance = None
+        cfg = Config.get()
+        assert cfg.app_port == 9999
+
+    def test_rclone_path_from_env(self):
+        os.environ["CLOUD_RCLONE_PATH"] = "/custom/rclone"
+        Config._instance = None
+        cfg = Config.get()
+        assert cfg.rclone_path == "/custom/rclone"

@@ -1,10 +1,10 @@
 """CRUD repository for cloud_drive_configs table."""
 
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from src.core.logger import get_logger
 from src.core import encryption as enc
-from src.db.connection import ConnectionManager, get_connection
+from src.db.database import Database
 from src.db.schemas import (
     CloudDriveConfigCreate,
     CloudDriveConfigUpdate,
@@ -18,13 +18,13 @@ logger = get_logger("db.repository")
 class CloudDriveConfigRepository:
     """CRUD operations on cloud_drive_configs table.
 
-    Requires an active ConnectionManager context.
+    Works with Database singleton.
     """
 
     TABLE = "cloud_drive_configs"
 
-    def __init__(self, conn_mgr: ConnectionManager):
-        self.conn_mgr = conn_mgr
+    def __init__(self, db: Database):
+        self._db = db
 
     # ── Internal helpers ────────────────────────────────────────────────────────
 
@@ -60,37 +60,29 @@ class CloudDriveConfigRepository:
 
     def list_all(self) -> List[CloudDriveConfigResponse]:
         """List all cloud drive configs."""
-        with self.conn_mgr.cursor() as cur:
-            cur.execute(f"SELECT * FROM {self.TABLE} ORDER BY drive_type")
-            rows = cur.fetchall()
+        rows = self._db.fetch_all(f"SELECT * FROM {self.TABLE} ORDER BY drive_type")
         return [self._row_to_response(row) for row in rows]
 
     def get_by_drive_type(self, drive_type: str) -> Optional[CloudDriveConfigResponse]:
         """Get a single config by drive_type."""
-        with self.conn_mgr.cursor() as cur:
-            cur.execute(f"SELECT * FROM {self.TABLE} WHERE drive_type = %s", (drive_type,))
-            row = cur.fetchone()
+        row = self._db.fetch_one(f"SELECT * FROM {self.TABLE} WHERE drive_type = %s", (drive_type,))
         return self._row_to_response(row) if row else None
 
     def get_by_drive_type_raw(self, drive_type: str) -> Optional[dict]:
         """Get raw DB row (includes encrypted_password) for internal use."""
-        with self.conn_mgr.cursor() as cur:
-            cur.execute(f"SELECT * FROM {self.TABLE} WHERE drive_type = %s", (drive_type,))
-            return cur.fetchone()
+        return self._db.fetch_one(f"SELECT * FROM {self.TABLE} WHERE drive_type = %s", (drive_type,))
 
     def create(self, data: CloudDriveConfigCreate) -> CloudDriveConfigResponse:
         """Create a new cloud drive config."""
         encrypted = self._encrypt_password(data.password)
-        with self.conn_mgr.cursor() as cur:
-            cur.execute(
-                f"""INSERT INTO {self.TABLE}
-                (drive_type, remote_name, drive_type_variant, host_endpoint,
-                 username, encrypted_password, is_enabled)
-                VALUES (%s,%s,%s,%s,%s,%s,TRUE)""",
-                (data.drive_type, data.remote_name, data.drive_type_variant,
-                 data.host_endpoint, data.username, encrypted),
-            )
-        self.conn_mgr.commit()
+        self._db.execute(
+            f"""INSERT INTO {self.TABLE}
+            (drive_type, remote_name, drive_type_variant, host_endpoint,
+             username, encrypted_password, is_enabled)
+            VALUES (%s,%s,%s,%s,%s,%s,TRUE)""",
+            (data.drive_type, data.remote_name, data.drive_type_variant,
+             data.host_endpoint, data.username, encrypted),
+        )
         logger.info("Created cloud drive config: %s", data.drive_type)
         return self.get_by_drive_type(data.drive_type)
 
@@ -113,25 +105,19 @@ class CloudDriveConfigRepository:
         if not sets:
             return self.get_by_drive_type(drive_type)
         params.append(drive_type)
-        with self.conn_mgr.cursor() as cur:
-            cur.execute(f"UPDATE {self.TABLE} SET {','.join(sets)} WHERE drive_type=%s", params)
-        self.conn_mgr.commit()
+        self._db.execute(f"UPDATE {self.TABLE} SET {','.join(sets)} WHERE drive_type=%s", tuple(params))
         logger.info("Updated cloud drive config: %s", drive_type)
         return self.get_by_drive_type(drive_type)
 
     def delete(self, drive_type: str) -> bool:
         """Delete a cloud drive config. Returns True if deleted."""
-        with self.conn_mgr.cursor() as cur:
-            cur.execute(f"DELETE FROM {self.TABLE} WHERE drive_type=%s", (drive_type,))
-        self.conn_mgr.commit()
+        rowcount = self._db.execute(f"DELETE FROM {self.TABLE} WHERE drive_type=%s", (drive_type,))
         logger.info("Deleted cloud drive config: %s", drive_type)
-        return cur.rowcount > 0
+        return rowcount > 0
 
     def get_enabled_configs(self) -> List[dict]:
         """Get all enabled configs with decrypted passwords (for rclone config)."""
-        with self.conn_mgr.cursor() as cur:
-            cur.execute(f"SELECT * FROM {self.TABLE} WHERE is_enabled=TRUE")
-            rows = cur.fetchall()
+        rows = self._db.fetch_all(f"SELECT * FROM {self.TABLE} WHERE is_enabled=TRUE")
         result = []
         for row in rows:
             row = dict(row)
@@ -143,23 +129,21 @@ class CloudDriveConfigRepository:
         return result
 
 
-def create_tables(conn_mgr: ConnectionManager) -> None:
+def create_tables(db: Database) -> None:
     """Create the cloud_drive_configs table if it doesn't exist."""
-    with conn_mgr.cursor() as cur:
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS cloud_drive_configs (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                drive_type VARCHAR(32) NOT NULL UNIQUE,
-                remote_name VARCHAR(128) NOT NULL,
-                drive_type_variant VARCHAR(32) NOT NULL,
-                host_endpoint VARCHAR(512) NULL,
-                username VARCHAR(256) NULL,
-                encrypted_password VARCHAR(512) NULL,
-                is_enabled BOOLEAN DEFAULT TRUE,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                INDEX idx_drive_type (drive_type)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        """)
-    conn_mgr.commit()
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS cloud_drive_configs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            drive_type VARCHAR(32) NOT NULL UNIQUE,
+            remote_name VARCHAR(128) NOT NULL,
+            drive_type_variant VARCHAR(32) NOT NULL,
+            host_endpoint VARCHAR(512) NULL,
+            username VARCHAR(256) NULL,
+            encrypted_password VARCHAR(512) NULL,
+            is_enabled BOOLEAN DEFAULT TRUE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_drive_type (drive_type)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """)
     logger.info("Table cloud_drive_configs ensured")

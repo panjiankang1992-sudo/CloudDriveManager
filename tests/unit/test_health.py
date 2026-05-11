@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
-from src.config.config import Config, _AppConfig
+from src.core.config import Config
 from src.core.schemas import APIResponse
 
 
@@ -12,19 +12,14 @@ class TestHealthCheck:
 
     def setup_method(self):
         Config._instance = None
-        Config._env = None
 
     def teardown_method(self):
         Config._instance = None
-        Config._env = None
 
     @pytest.mark.asyncio
     @patch("src.api.health._check_rclone")
-    async def test_health_check_healthy(self, mock_check):
+    async def test_health_check_returns_response(self, mock_check):
         mock_check.return_value = True
-
-        # Load real config (config_dev.yaml exists)
-        cfg = Config.load("dev")
 
         from src.api.health import health_check
 
@@ -41,8 +36,6 @@ class TestHealthCheck:
     async def test_health_check_degraded_when_rclone_missing(self, mock_check):
         mock_check.return_value = False
 
-        cfg = Config.load("dev")
-
         from src.api.health import health_check
 
         resp = await health_check()
@@ -57,17 +50,15 @@ class TestCheckRclone:
 
     def setup_method(self):
         Config._instance = None
-        Config._env = None
 
     def teardown_method(self):
         Config._instance = None
-        Config._env = None
 
     @patch("shutil.which")
     def test_check_rclone_finds_on_path(self, mock_which):
         mock_which.return_value = "/usr/bin/rclone"
 
-        cfg = Config.load("dev")
+        cfg = Config.get()
         from src.api.health import _check_rclone
 
         result = _check_rclone(cfg)
@@ -77,7 +68,7 @@ class TestCheckRclone:
     def test_check_rclone_not_found(self, mock_which):
         mock_which.return_value = None
 
-        cfg = Config.load("dev")
+        cfg = Config.get()
         from src.api.health import _check_rclone
 
         result = _check_rclone(cfg)

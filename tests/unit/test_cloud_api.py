@@ -9,12 +9,15 @@ from src.core.exceptions import (
     RcloneNotFoundError,
     FileNotFoundError,
 )
-from src.api.cloud import get_drive_service, SUPPORTED_DRIVES
-from src.services.pikpak import PikPakCloudDrive
-from src.services.jianguoyun import JianguoyunCloudDrive
-from src.services.baidu import BaiduCloudDrive
-from src.services.aliyun import AliyunCloudDrive
-from src.services.quark import QuarkCloudDrive
+from src.api.cloud import SUPPORTED_DRIVES
+from src.services.base import (
+    PikPakCloudDrive,
+    JianguoyunCloudDrive,
+    BaiduCloudDrive,
+    AliyunCloudDrive,
+    QuarkCloudDrive,
+    get_drive_service,
+)
 
 
 class TestGetDriveService:
@@ -33,9 +36,9 @@ class TestGetDriveService:
         assert isinstance(service, JianguoyunCloudDrive)
 
     @patch("src.adapters.rclone_adapter.shutil.which")
-    def test_baidu_service_created(self, mock_which):
+    def test_baiduyun_service_created(self, mock_which):
         mock_which.return_value = "/usr/bin/rclone"
-        service = get_drive_service("baidu", "rclone", "mybaidu", 300)
+        service = get_drive_service("baiduyun", "rclone", "mybaiduyun", 300)
         assert isinstance(service, BaiduCloudDrive)
 
     @patch("src.adapters.rclone_adapter.shutil.which")
@@ -62,5 +65,5 @@ class TestGetDriveService:
 
 class TestSupportedDrives:
     def test_all_five_drives_supported(self):
-        expected = {"pikpak", "jianguoyun", "baidu", "aliyun", "quark"}
+        expected = {"pikpak", "jianguoyun", "baiduyun", "aliyun", "quark"}
         assert SUPPORTED_DRIVES == expected

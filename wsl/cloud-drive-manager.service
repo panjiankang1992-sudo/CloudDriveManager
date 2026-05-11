@@ -1,15 +1,20 @@
 [Unit]
 Description=CloudDriveManager HTTP API Service
 After=network.target
+Wants=cloud-drive-manager-mcp.service
 
 [Service]
 Type=simple
-WorkingDirectory=/home/yuyutian/cloud-drive
-ExecStart=/home/yuyutian/cloud-drive/bin/cloud-drive-manager.sh
+WorkingDirectory=/opt/CloudDriveManager
+Environment="CLOUD_ENV=prod"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/opt/CloudDriveManager/bin/cloud-drive-manager
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
+LogsDirectory=cloud-drive-manager
+RuntimeDirectory=cloud-drive-manager
 
 [Install]
 WantedBy=default.target

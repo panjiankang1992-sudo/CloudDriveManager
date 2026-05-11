@@ -6,7 +6,7 @@ Health check endpoint — verifies rclone is available and the service is runnin
 import shutil
 from fastapi import APIRouter
 
-from src.config.config import Config
+from src.core.config import Config
 from ..core.schemas import APIResponse, HealthResponseData
 
 router = APIRouter(tags=["health"])
@@ -22,15 +22,14 @@ async def health_check() -> APIResponse[HealthResponseData]:
     - rclone executable is accessible (on PATH or at configured path)
     """
     cfg = Config.get()
-    app_cfg = cfg.app
-    env = Config.env()
+    env = cfg.env
 
     # Check rclone availability
     rclone_available = _check_rclone(cfg)
 
     data = HealthResponseData(
         status="healthy" if rclone_available else "degraded",
-        version=app_cfg.get("version", "1.0.0"),
+        version="1.0.0",
         env=env,
         rclone_available=rclone_available,
     )
@@ -40,9 +39,7 @@ async def health_check() -> APIResponse[HealthResponseData]:
 def _check_rclone(cfg: Config) -> bool:
     """Check if rclone is available at the configured path or on PATH."""
     try:
-        # Check configured path first
-        pikpak_cfg = cfg.pikpak
-        rclone_path = pikpak_cfg.get("rclone_path", "")
+        rclone_path = cfg.rclone_path
         if rclone_path:
             return shutil.which(rclone_path) is not None
         # Fall back to PATH

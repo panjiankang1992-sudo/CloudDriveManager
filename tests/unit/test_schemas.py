@@ -25,7 +25,6 @@ from src.core.schemas import (
     SyncResponseData,
     OfflineDownloadRequestData,
     OfflineDownloadResponseData,
-    MoveRequestData,
     MoveResponseData,
     ErrorDetailSchema,
 )
@@ -240,15 +239,6 @@ class TestOfflineDownloadRequestData:
     def test_default_folder(self):
         req = OfflineDownloadRequestData(urls=["https://example.com/file.zip"])
         assert req.folder == "/downloads"
-
-
-class TestMoveRequestData:
-    def test_valid_move(self):
-        req = MoveRequestData(
-            source_path="/old/name.txt",
-            destination_path="/new/name.txt",
-        )
-        assert req.source_path == "/old/name.txt"
 
 
 class TestMoveResponseData:

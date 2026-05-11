@@ -6,7 +6,7 @@ from typing import List, Optional, Tuple
 
 from src.core.logger import get_logger
 from src.core.exceptions import RcloneNotFoundError, RcloneExecutionError
-from src.db.connection import ConnectionManager
+from src.db.database import Database
 from src.db.repository import CloudDriveConfigRepository, create_tables
 
 logger = get_logger("rclone_configurator")
@@ -148,12 +148,12 @@ class RcloneConfigurator:
 
     # ── Auto-configuration ───────────────────────────────────────────────────
 
-    def configure_from_db(self, conn_mgr: ConnectionManager) -> List[dict]:
+    def configure_from_db(self, db: Database) -> List[dict]:
         """Auto-configure all enabled remotes from database.
 
         Returns a list of results for each configured drive.
         """
-        repo = CloudDriveConfigRepository(conn_mgr)
+        repo = CloudDriveConfigRepository(db)
         enabled_configs = repo.get_enabled_configs()
 
         results = []
@@ -209,12 +209,12 @@ class RcloneConfigurator:
 
         return results
 
-    def apply_single(self, conn_mgr: ConnectionManager, drive_type: str) -> dict:
+    def apply_single(self, db: Database, drive_type: str) -> dict:
         """Apply (create or update) a single remote from DB config.
 
         Returns the apply result dict.
         """
-        repo = CloudDriveConfigRepository(conn_mgr)
+        repo = CloudDriveConfigRepository(db)
         raw = repo.get_by_drive_type_raw(drive_type)
         if not raw:
             return {"drive_type": drive_type, "action": "not_found", "detail": "No config in database"}
@@ -240,14 +240,14 @@ class RcloneConfigurator:
 
 
 def run_autoconfig(
-    conn_mgr: ConnectionManager,
+    db: Database,
     rclone_path: str = "rclone",
 ) -> List[dict]:
     """Top-level entry point: ensure tables exist, then auto-configure remotes."""
     try:
-        create_tables(conn_mgr)
+        create_tables(db)
     except Exception as e:
         logger.warning("Could not create tables (may already exist): %s", e)
 
     configurator = RcloneConfigurator(rclone_path)
-    return configurator.configure_from_db(conn_mgr)
+    return configurator.configure_from_db(db)

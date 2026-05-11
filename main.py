@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from src.config.config import Config
+from src.core.config import Config
 from src.core.exceptions import CloudDriveError
 from src.core.logger import get_logger, setup_logger
 from src.core import encryption as enc
@@ -23,7 +23,7 @@ from src.api import health
 from src.api.cloud import create_cloud_router, SUPPORTED_DRIVES, get_drive_service
 from src.api.sync import router as sync_router
 from src.api.admin import router as admin_router
-from src.db.connection import get_connection
+from src.db.database import Database
 from src.services.rclone_configurator import run_autoconfig
 
 logger = get_logger("main")
@@ -34,22 +34,21 @@ logger = get_logger("main")
 def create_app(env: str = "dev") -> FastAPI:
     """Create and configure the FastAPI application."""
     # 1. Load configuration
-    Config.load(env)
+    cfg = Config.get(env=env)
 
     # 2. Set up logging
-    setup_logger()
+    setup_logger("main")
 
     # 3. Configure encryption (Fernet key from config)
-    salt = Config.get().encryption.get("salt", "").strip()
+    salt = cfg.encryption_salt.strip()
     if salt:
         enc.configure(salt)
 
     # 3b. Auto-configure rclone remotes from database (non-blocking)
-    cfg = Config.get()
     try:
-        conn_mgr = get_connection(cfg)
-        if conn_mgr:
-            results = run_autoconfig(conn_mgr, rclone_path=cfg.pikpak.get("rclone_path", "rclone"))
+        db = Database.get()
+        if db:
+            results = run_autoconfig(db, rclone_path=cfg.rclone_path)
             for r in results:
                 if r["action"] == "failed":
                     logger.error("Auto-config failed for %s: %s", r["drive_type"], r.get("detail"))
@@ -60,8 +59,8 @@ def create_app(env: str = "dev") -> FastAPI:
 
     # 4. Create FastAPI app
     app = FastAPI(
-        title=Config.get().app.get("name", "cloud_drive_manager"),
-        version=Config.get().app.get("version", "1.0.0"),
+        title="cloud_drive_manager",
+        version="1.0.0",
         description="Cloud Drive Manager — multi-cloud-drive HTTP service via rclone",
     )
 
@@ -102,7 +101,7 @@ def create_app(env: str = "dev") -> FastAPI:
         except Exception as e:
             logger.warning("Failed to register %s: %s", drive_type, e)
 
-    logger.info("Application created | env=%s | version=%s", env, Config.get().app.get("version"))
+    logger.info("Application created | env=%s | version=1.0.0", env)
     return app
 
 
@@ -119,8 +118,8 @@ def main() -> None:
     cfg = Config.get()
     uvicorn.run(
         app,
-        host=cfg.server.get("host", "0.0.0.0"),
-        port=cfg.server.get("port", 8000),
+        host=cfg.app_host,
+        port=cfg.app_port,
         log_level="debug" if env == "dev" else "info",
     )
 

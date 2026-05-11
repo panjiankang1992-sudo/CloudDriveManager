@@ -5,14 +5,13 @@ Exposes: POST /cloud/{drive_type}/list, /detail, /move, /delete
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Dict, Type
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import JSONResponse
 
 from src.core.exceptions import (
     CloudDriveError,
-    UnsupportedDriveTypeError,
     ValidationError,
     CloudDriveNotFoundError,
 )
@@ -30,53 +29,20 @@ from src.core.schemas import (
     FileListResponseData,
     SyncRequestData,
     SyncResponseData,
-    MoveRequestData,
     OfflineDownloadRequestData,
     OfflineDownloadResponseData,
 )
 from src.services.base import CloudDriveService, get_drive_service
-from src.services.pikpak import PikPakCloudDrive
-from src.services.jianguoyun import JianguoyunCloudDrive
-from src.services.baidu import BaiduCloudDrive
-from src.services.aliyun import AliyunCloudDrive
-from src.services.quark import QuarkCloudDrive
 from src.core.operation_logger import get_operation_logger
 
 logger = get_logger("cloud_api")
 
-SUPPORTED_DRIVES = {"pikpak", "jianguoyun", "baidu", "aliyun", "quark"}
-
-# Service class registry — maps drive_type to CloudDriveService subclass
-_DRIVE_SERVICE_REGISTRY: Dict[str, Type[CloudDriveService]] = {
-    "pikpak": PikPakCloudDrive,
-    "jianguoyun": JianguoyunCloudDrive,
-    "baidu": BaiduCloudDrive,
-    "aliyun": AliyunCloudDrive,
-    "quark": QuarkCloudDrive,
-}
-
-
-def get_drive_service(
-    drive_type: str,
-    rclone_path: str,
-    remote_name: str,
-    timeout: int = 300,
-) -> CloudDriveService:
-    """Factory: create a CloudDriveService instance for the given drive type."""
-    drive_type_lower = drive_type.lower()
-    if drive_type_lower not in SUPPORTED_DRIVES:
-        raise UnsupportedDriveTypeError(
-            message=f"Unsupported cloud drive type: {drive_type}",
-            detail=f"Supported types: {', '.join(sorted(SUPPORTED_DRIVES))}",
-        )
-
-    service_class = _DRIVE_SERVICE_REGISTRY[drive_type_lower]
-    return service_class(rclone_path=rclone_path, remote_name=remote_name, timeout=timeout)
+SUPPORTED_DRIVES = {"pikpak", "jianguoyun", "baiduyun", "aliyun", "quark"}
 
 
 def _error_response(code: str, message: str, detail: str | None = None) -> JSONResponse:
     return JSONResponse(
-        status_code=200,
+        status_code=500,
         content=APIResponse.error(code=code, message=message, detail=detail).model_dump(),
     )
 
@@ -234,7 +200,7 @@ def create_cloud_router(
 
     @router.post("/move", response_model=APIResponse[MoveResponseData])
     async def move_file(
-        body: MoveRequestData,
+        body: CloudDriveMoveRequest,
         request: Request = None,
     ):
         """Move/rename a file or directory within the cloud drive."""

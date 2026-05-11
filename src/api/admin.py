@@ -7,7 +7,8 @@ from fastapi.responses import JSONResponse
 
 from src.core.exceptions import CloudDriveError
 from src.core.schemas import APIResponse
-from src.db.connection import get_connection
+from src.core.config import Config
+from src.db.database import Database
 from src.db.repository import CloudDriveConfigRepository
 from src.db.schemas import (
     CloudDriveConfigCreate,
@@ -22,27 +23,24 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 def _get_repo():
     """Get a repository with an active DB connection."""
-    from src.config.config import Config
     cfg = Config.get()
-    conn_mgr = get_connection(cfg)
-    if not conn_mgr:
+    db = Database.get()
+    if not db:
         raise HTTPException(status_code=503, detail="Database not configured")
-    return CloudDriveConfigRepository(conn_mgr)
+    return CloudDriveConfigRepository(db)
 
 
 def _apply_rclone_config(drive_type: str, remote_name: str) -> dict:
     """Apply rclone config for a single drive (create/update)."""
-    from src.config.config import Config
     cfg = Config.get()
-    conn_mgr = get_connection(cfg)
-    if not conn_mgr:
+    db = Database.get()
+    if not db:
         return {"action": "skipped", "detail": "no DB connection"}
 
-    drive_cfg = getattr(cfg, drive_type, {})
-    rclone_path = drive_cfg.get("rclone_path", "rclone")
+    rclone_path = cfg.rclone_path
 
     configurator = RcloneConfigurator(rclone_path)
-    return configurator.apply_single(conn_mgr, drive_type)
+    return configurator.apply_single(db, drive_type)
 
 
 # ── GET /admin/cloud-configs ─────────────────────────────────────────────────
@@ -103,15 +101,13 @@ async def create_config(body: CloudDriveConfigCreate):
         created = repo.create(body)
 
         # Auto-apply if enabled
-        from src.config.config import Config
         cfg = Config.get()
         if created.is_enabled:
-            conn_mgr = get_connection(cfg)
-            if conn_mgr:
-                drive_cfg = getattr(cfg, body.drive_type, {})
-                rclone_path = drive_cfg.get("rclone_path", "rclone")
+            db = Database.get()
+            if db:
+                rclone_path = cfg.rclone_path
                 configurator = RcloneConfigurator(rclone_path)
-                configurator.apply_single(conn_mgr, body.drive_type)
+                configurator.apply_single(db, body.drive_type)
 
         return APIResponse.ok(data=created)
     except HTTPException:
@@ -139,15 +135,13 @@ async def update_config(drive_type: str, body: CloudDriveConfigUpdate):
             raise HTTPException(status_code=404, detail=f"No config found for drive_type: {drive_type}")
 
         # Re-apply rclone config if enabled
-        from src.config.config import Config
         cfg = Config.get()
         if updated.is_enabled:
-            conn_mgr = get_connection(cfg)
-            if conn_mgr:
-                cfg_drive = getattr(cfg, drive_type, {})
-                rclone_path = cfg_drive.get("rclone_path", "rclone")
+            db = Database.get()
+            if db:
+                rclone_path = cfg.rclone_path
                 configurator = RcloneConfigurator(rclone_path)
-                configurator.apply_single(conn_mgr, drive_type)
+                configurator.apply_single(db, drive_type)
 
         return APIResponse.ok(data=updated)
     except HTTPException:
@@ -171,12 +165,10 @@ async def delete_config(drive_type: str):
             raise HTTPException(status_code=404, detail=f"No config found for drive_type: {drive_type}")
 
         # Also delete the rclone remote if it exists
-        from src.config.config import Config
         cfg = Config.get()
-        conn_mgr = get_connection(cfg)
-        if conn_mgr:
-            cfg_drive = getattr(cfg, drive_type, {})
-            rclone_path = cfg_drive.get("rclone_path", "rclone")
+        db = Database.get()
+        if db:
+            rclone_path = cfg.rclone_path
             configurator = RcloneConfigurator(rclone_path)
             if configurator.remote_exists(repo.get_by_drive_type_raw(drive_type)["remote_name"] if repo.get_by_drive_type_raw(drive_type) else ""):
                 # We don't have the original remote_name since we deleted — skip
@@ -206,10 +198,8 @@ async def apply_config(drive_type: str):
         if not raw:
             raise HTTPException(status_code=404, detail=f"No config found for drive_type: {drive_type}")
 
-        from src.config.config import Config
         cfg = Config.get()
-        cfg_drive = getattr(cfg, drive_type, {})
-        rclone_path = cfg_drive.get("rclone_path", "rclone")
+        rclone_path = cfg.rclone_path
         configurator = RcloneConfigurator(rclone_path)
         result = configurator.apply_single(repo.conn_mgr, drive_type)
 
